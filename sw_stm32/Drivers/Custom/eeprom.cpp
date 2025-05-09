@@ -342,9 +342,10 @@ uint16_t EE_VerifyPageFullyErased(uint32_t Address)
 {
   uint32_t ReadStatus = 1;
   uint16_t AddressValue = 0x5555;
+  uint32_t endAddress = Address + (PAGE_SIZE - 1);
     
   /* Check each active page address starting from end */
-  while (Address <= PAGE0_END_ADDRESS)
+  while (Address <= endAddress)
   {
     /* Get the current location content to be compared with virtual address */
     AddressValue = (*(__IO uint16_t*)Address);
