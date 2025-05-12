@@ -692,7 +692,7 @@ static TaskParameters_t p =
   LOGGER_PRIORITY + portPRIVILEGE_BIT, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { (void *)0x80C0000, 0x40000, portMPU_REGION_READ_WRITE },
+      { (void *)EEPROM_START_ADDRESS, EEPROM_TOTAL_SIZE, portMPU_REGION_READ_WRITE },
       { 0, 0, 0}
       } 
     };

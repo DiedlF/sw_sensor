@@ -47,4 +47,19 @@ void CAN_task_runnable( void *)
     }
 }
 
-COMMON RestrictedTask CAN_task( CAN_task_runnable, "CAN", 256, 0, CAN_PRIORITY);
+static ROM TaskParameters_t p =
+  {
+      CAN_task_runnable,
+      "CAN",
+      256,
+      0,
+      CAN_PRIORITY,
+      0,
+    {
+      { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
+      { (void *)EEPROM_START_ADDRESS, EEPROM_TOTAL_SIZE, portMPU_REGION_READ_WRITE }, // EEPROM
+      { 0, 0, 0 }
+    }
+  };
+
+COMMON RestrictedTask CAN_task (p);

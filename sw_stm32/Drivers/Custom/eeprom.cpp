@@ -61,6 +61,8 @@ COMMON uint16_t DataVar = 0;
 /* Virtual address defined by the user: 0xFFFF value is prohibited */
 COMMON uint16_t VirtAddVarTab[NB_OF_VAR];
 
+COMMON static bool initialized = false;
+
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 static HAL_StatusTypeDef EE_Format(void);
@@ -78,6 +80,13 @@ static uint16_t EE_VerifyPageFullyErased(uint32_t Address);
   */
 uint16_t EE_Init(void)
 {
+
+  /*Prevent initialization multiple times. Should only be invoked once during startup.*/
+  if (initialized == true){
+      return HAL_ERROR;
+  }
+  initialized = true;
+
   /* Copy EEPROM Parameter IDs to the VirtAddVarTab. NOTE: This is not optimal as NB_OF_VAR shall be set to
    * PERSISTENT_DATA_ENTRIES but this value is not available for a define. NB_OF_VAR is slightly to large because
    * some IDs in EEPROM_PARAMETER_ID are skipped but easier to implement. */

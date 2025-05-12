@@ -76,6 +76,8 @@
                                                   from sector2 : after 16KByte of used 
                                                   Flash memory */
 
+#define EEPROM_TOTAL_SIZE      (PAGE_SIZE * 2)
+
 /* Pages 0 and 1 base and end addresses */
 #define PAGE0_BASE_ADDRESS    ((uint32_t)(EEPROM_START_ADDRESS + 0x0000))
 #define PAGE0_END_ADDRESS     ((uint32_t)(EEPROM_START_ADDRESS + (PAGE_SIZE - 1)))

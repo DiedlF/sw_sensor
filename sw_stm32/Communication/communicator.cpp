@@ -313,7 +313,7 @@ static ROM TaskParameters_t p =
   COMMUNICATOR_START_PRIORITY, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
-      { (void*) 0x80f8000, 0x08000, portMPU_REGION_READ_WRITE }, // EEPROM access for MAG calib.
+      { (void *)EEPROM_START_ADDRESS, EEPROM_TOTAL_SIZE, portMPU_REGION_READ_WRITE }, // EEPROM access for MAG calib.
       { 0, 0, 0 } } };
 
 COMMON RestrictedTask communicator_task (p);
