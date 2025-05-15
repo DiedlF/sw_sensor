@@ -28,7 +28,7 @@
 #include "stdint.h"
 #include "emergency.h"
 
-#if 1
+#if 0
 #define ASSERT(x) if((x)==0) asm volatile("bkpt 0")
 #else
 #define ASSERT(x) if((x)==0) emergency_write_crashdump( (char *)__FILE__, __LINE__);
