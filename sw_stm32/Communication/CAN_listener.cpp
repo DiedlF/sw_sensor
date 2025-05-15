@@ -71,32 +71,15 @@ bool EEPROM_config_read_write( const CANpacket & p, float & return_value)
       {
 	if( read_EEPROM_value( id, return_value)) // if error
 	  return false;
-	switch( id)
-	{
-	  case SENS_TILT_ROLL: // angles need to be converted degrees->radiant
-	  case SENS_TILT_PITCH:
-	  case SENS_TILT_YAW:
-	    return_value *= M_PI / 180.0;
-	  default:
-	    break;
-	}
 	return true;
       }
 
     case 1: // set value
       {
 	float value = p.data_f[1];
-	switch( id)
-	{
-	  case SENS_TILT_ROLL: // angles need to be converted radiant->degrees
-	  case SENS_TILT_PITCH:
-	  case SENS_TILT_YAW:
-	    value *= 180.0 / M_PI;
-	  default:
-	    break;
-	}
+
 	(void) write_EEPROM_value( id, value); // no way to report errors here ...
-	  communicator_command_queue.send( SOME_EEPROM_VALUE_HAS_CHANGED, 100);
+	communicator_command_queue.send( SOME_EEPROM_VALUE_HAS_CHANGED, 1);
 	return false; // report "nothing read"
       }
       break;
@@ -268,7 +251,7 @@ static ROM TaskParameters_t p =
       "CAN_RX",
       256,
       0,
-      CAN_PRIORITY,
+      WATCHDOG_TASK_PRIORITY -1,
       0,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
