@@ -92,11 +92,10 @@ void EE_task_runnable(void *)
   status = EE_Init();
   ASSERT(HAL_OK == status);
 
-
   status = HAL_FLASH_Lock();
   ASSERT(HAL_OK == status);
 
-  /*Read all variables to RAM*/
+  /* Read all variables to RAM */
   uint16_t varIdx = 0;
   uint16_t data = 0;
   for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
@@ -126,9 +125,9 @@ void EE_task_runnable(void *)
 	  {
 	      status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
 	      if ((data != VirtDatVarTab[varIdx]) || (status != 0 )){
-		  /*Write variable ot flash it if differs or does not exist */
+		  /* Write variable to flash if it differs or does not exist yet */
 		  status = EE_WriteVariable(VirtAddVarTab[varIdx], VirtDatVarTab[varIdx]);
-		  ASSERT(HAL_OK == status); //This shall never happen
+		  ASSERT(HAL_OK == status); /* This shall never happen */
 	      }
 	  }
 	  writePending = false;
