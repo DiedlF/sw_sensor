@@ -49,7 +49,7 @@ COMMON Semaphore setup_file_handling_completed(1,0,(char *)"SETUP");
 COMMON output_data_t __ALIGNED(1024) output_data = { 0 };
 COMMON GNSS_type GNSS (output_data.c);
 
-COMMON Queue < communicator_command_t> communicator_command_queue(1);
+COMMON Queue < communicator_command_t> communicator_command_queue(2);
 
 extern RestrictedTask NMEA_task;
 extern RestrictedTask communicator_task;
@@ -72,30 +72,16 @@ void communicator_runnable (void*)
   vector_average_collection_t vector_average_collection={0};
 
   bool have_first_GNSS_fix = false;
+  bool fine_tune_sensor_attitude = false;
 
   // wait until configuration file read if one is given
   setup_file_handling_completed.wait();
 
   organizer_t organizer;
 
-restart_data_acquisition: // start from the beginning with new configuration
-
   organizer.initialize_before_measurement();
 
   uint16_t GNSS_count = 0;
-
-#if WITH_DENSITY_DATA
-  uint16_t air_density_sensor_counter = 0;
-
-  Queue<CANpacket> air_density_sensor_Q (2);
-
-    {
-      CAN_distributor_entry cde =
-	{ 0xffff, 0x120, &air_density_sensor_Q };
-      bool result = subscribe_CAN_messages (cde);
-      ASSERT(result);
-    }
-#endif
 
   GNSS_configration_t GNSS_configuration =
       (GNSS_configration_t) round(configuration (GNSS_CONFIGURATION));
@@ -106,8 +92,6 @@ restart_data_acquisition: // start from the beginning with new configuration
 
   switch (GNSS_configuration)
     {
-    case GNSS_NONE:
-      break;
     case GNSS_M9N:
       {
 	Task usart3_task (USART_3_runnable, "GNSS", 256, (void *)&FALSE, STANDARD_TASK_PRIORITY+1);
@@ -163,30 +147,12 @@ restart_data_acquisition: // start from the beginning with new configuration
   communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
 
   compass_ground_calibration_t compass_ground_calibration;
-  unsigned magnetic_ground_calibrator_countdown = 100 * 60 * 2; // 2 minutes
   unsigned GNSS_watchdog = 0;
 
   // this is the MAIN data acquisition and processing loop
   while (true)
     {
       notify_take (true); // wait for synchronization by IMU @ 100 Hz
-
-      // if we are in magnetic calibration mode:
-      // do this here as a side-job and switch off it's flag at the end
-      if( magnetic_gound_calibration && (magnetic_ground_calibrator_countdown > 0))
-	{
-	  --magnetic_ground_calibrator_countdown;
-	  compass_ground_calibration.feed(output_data.m.mag);
-	  if( 0 == magnetic_ground_calibrator_countdown)
-	    {
-	      compass_calibration_t <int64_t, float> new_calibration;
-	      compass_ground_calibration.get_calibration_result(new_calibration.calibration);
-	      new_calibration.calibration_done = true;
-	      new_calibration.write_into_EEPROM();
-	      magnetic_calibration_done.signal();
-	      magnetic_gound_calibration = false; // stop this procedure
-	    }
-	}
 
       if (GNSS_new_data_ready) // triggered after 75ms or 200ms, GNSS-dependent
 	{
@@ -252,14 +218,24 @@ restart_data_acquisition: // start from the beginning with new configuration
 	      if( vector_average_collection.acc_observed_level.abs() < 0.001f)
 		break;
 
+	      communicator_task.set_priority( WATCHDOG_TASK_PRIORITY); // decrease priority
 	      organizer.update_sensor_orientation_data( vector_average_collection);
+	      communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
+
+	      organizer.initialize_before_measurement();
+	      break;
+	    case FINE_TUNE_CALIB:
+	      vector_average_organizer.source=&(output_data.m.acc);
+	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_level);
+	      vector_average_organizer.destination->zero();
+	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT;
+	      fine_tune_sensor_attitude = true;
 	      break;
 
 	    case SOME_EEPROM_VALUE_HAS_CHANGED:
-		goto restart_data_acquisition;
+	      organizer.initialize_before_measurement();
 	      break;
 
-	    case FINE_TUNE_CALIB: // todo implement me !
 	    case NO_COMMAND:
 	      break;
 	  }
@@ -275,6 +251,18 @@ restart_data_acquisition: // start from the beginning with new configuration
 	    {
 	      float inverse_count = 1.0f / VECTOR_AVERAGE_COUNT;
 	      *(vector_average_organizer.destination) = vector_average_organizer.sum * inverse_count;
+
+	      // in this case we do not wait for another command but re-calculate immediately
+	      if( fine_tune_sensor_attitude)
+		{
+		  fine_tune_sensor_attitude=false;
+
+		  communicator_task.set_priority( WATCHDOG_TASK_PRIORITY); // decrease priority
+		  organizer.fine_tune_sensor_orientation( vector_average_collection);
+		  communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
+
+		  organizer.initialize_before_measurement();
+		}
 	    }
 	}
 
@@ -330,32 +318,6 @@ restart_data_acquisition: // start from the beginning with new configuration
 	{
 	  count_10Hz = 0;
 	  trigger_CAN ();
-
-#if WITH_DENSITY_DATA
-	  // take care of ambient air data if sensor reports any
-	  CANpacket p;
-	  if( air_density_sensor_Q.receive( p, 0) && p.dlc == 8)
-	    {
-	      air_density_sensor_counter = 0;
-	      organizer.set_density_data(p.data_f[0], p.data_f[1]);
-	      update_system_state_set( AIR_SENSOR_AVAILABLE);
-	      output_data.m.outside_air_temperature = p.data_f[0];
-	      output_data.m.outside_air_humidity = p.data_f[1];
-	    }
-	  else
-	    {
-	      if( air_density_sensor_counter < 10)
-		  ++air_density_sensor_counter;
-	      else
-		{
-		  organizer.disregard_density_data();
-		  update_system_state_clear( AIR_SENSOR_AVAILABLE);
-		  output_data.m.outside_air_humidity = -1.0f; // means: disregard humidity and temperature
-		  output_data.m.outside_air_temperature = ZERO;
-		}
-	    }
-#endif
-
 	}
 
       organizer.report_data ( output_data);

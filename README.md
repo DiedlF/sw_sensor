@@ -57,8 +57,6 @@ If you observe frequent additional events you probabely have moving ferromagneti
 
 ### Additional developer options
 - Put an empty file with the name: "sensor.readings" in order to switch the serial output format from Larus NMEA syntax to pure sensor raw data values.
-- Additionally put an empty file with the name "magnetic.calibration" onto the root-directory of the sd-card in order to start a magnetic ground calibration. 
-This is a development feature and is usually not required nor advised for a standard installation. 
 
 # Led signal indications
 There are LEDs on the PCBs edge which indicate the following

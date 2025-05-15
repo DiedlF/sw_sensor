@@ -192,29 +192,6 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
     s=append_string( s, "No D-GNSS-fix");
 
   newline( s);
-
-  // here we report a fake vario value indicating the maximum magnetic field strength
-  if( magnetic_gound_calibration)
-    {
-      unsigned max_acc_value_axis = 0;
-      float max_abs_acceleration = -1.0f;
-      for( unsigned axis = 0; axis < 3; ++axis)
-        if( abs( output_data.m.acc[axis]) > max_abs_acceleration)
-          {
-    	max_abs_acceleration = fabs( output_data.m.acc[axis]);
-    	max_acc_value_axis = axis;
-          }
-
-      float vario = (fabs(output_data.m.mag[max_acc_value_axis]) - 0.5f) * 5.0f;
-      format_PLARV ( vario, 0.0f, 0.0f, 0.0f, s);
-    }
-  // here we report a fake vario value indicating the magnetic error
-  else
-    {
-      float vario = output_data.magnetic_disturbance * -5.0f;
-      format_PLARV ( vario, 0.0f, 0.0f, 0.0f, s);
-    }
-  newline( s);
   NMEA_buf.length = s - NMEA_buf.string;
 }
 
