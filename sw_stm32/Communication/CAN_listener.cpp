@@ -95,9 +95,7 @@ bool EEPROM_config_read_write( const CANpacket & p, float & return_value)
 	  default:
 	    break;
 	}
-	  lock_EEPROM( false);
 	(void) write_EEPROM_value( id, value); // no way to report errors here ...
-	  lock_EEPROM( true);
 	  communicator_command_queue.send( SOME_EEPROM_VALUE_HAS_CHANGED, 100);
 	return false; // report "nothing read"
       }

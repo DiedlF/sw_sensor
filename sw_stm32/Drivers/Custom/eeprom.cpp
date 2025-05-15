@@ -49,9 +49,16 @@
 /* Includes ------------------------------------------------------------------*/
 #include "eeprom.h"
 #include "common.h"
+#include "FreeRTOS_wrapper.h"
+#include "system_configuration.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+
+
+
+
+
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 
@@ -60,8 +67,11 @@ COMMON uint16_t DataVar = 0;
 
 /* Virtual address defined by the user: 0xFFFF value is prohibited */
 COMMON uint16_t VirtAddVarTab[NB_OF_VAR];
+COMMON uint16_t VirtDatVarTab[NB_OF_VAR];
+COMMON bool VirtExistsVarTab[NB_OF_VAR] = {false};
 
 COMMON static bool initialized = false;
+COMMON static bool writePending = false;
 
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -70,6 +80,143 @@ static uint16_t EE_FindValidPage(uint8_t Operation);
 static uint16_t EE_VerifyPageFullWriteVariable(uint16_t VirtAddress, uint16_t Data);
 static uint16_t EE_PageTransfer(uint16_t VirtAddress, uint16_t Data);
 static uint16_t EE_VerifyPageFullyErased(uint32_t Address);
+static uint16_t EE_Init(void);
+static uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data);
+static uint16_t EE_WriteVariable(uint16_t VirtAddress, uint16_t Data);
+
+void EE_task_runnable(void *)
+{
+  uint16_t status = HAL_FLASH_Unlock();  /* Only unlock flash if there is really something written*/
+  ASSERT(HAL_OK == status);
+
+  status = EE_Init();
+  ASSERT(HAL_OK == status);
+
+
+  status = HAL_FLASH_Lock();
+  ASSERT(HAL_OK == status);
+
+  /*Read all variables to RAM*/
+  uint16_t varIdx = 0;
+  uint16_t data = 0;
+  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+         {
+
+           status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
+           if (status == 0){
+               /*variable found*/
+               VirtDatVarTab[varIdx] = data;
+               VirtExistsVarTab[varIdx] = true;
+           }
+           else{
+               /*variable not found in flash*/
+               VirtExistsVarTab[varIdx] = false;
+           }
+         }
+  initialized = true;
+
+  for(;;){
+      vTaskDelay(1000); /* Sync to flash only once per second */
+      if (true == writePending){
+	  /* sync ram data to flash*/
+	  status = HAL_FLASH_Unlock();
+	  ASSERT(HAL_OK == status);
+
+	  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+	  {
+	      status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
+	      if ((data != VirtDatVarTab[varIdx]) || (status != 0 )){
+		  /*Write variable ot flash it if differs or does not exist */
+		  status = EE_WriteVariable(VirtAddVarTab[varIdx], VirtDatVarTab[varIdx]);
+		  ASSERT(HAL_OK == status); //This shall never happen
+	      }
+	  }
+	  writePending = false;
+	  status = HAL_FLASH_Lock();
+	  ASSERT(HAL_OK == status);
+      }
+  }
+}
+
+/**
+  * @brief  Returns the last stored variable data, if found, which correspond to
+  *   the passed virtual address from the ram buffer
+  * @param  VirtAddress: Variable virtual address
+  * @param  Data: reference to store the read variable
+  * @retval Success or error status:
+  *           - 0: if variable was found
+  *           - 1: if the variable was not found
+  */
+uint16_t EE_ReadVariableBuffered(uint16_t VirtAddress, uint16_t* Data)
+{
+  while (false == initialized){
+      vTaskDelay(1); //Wait forever until initialization is done
+  }
+
+  uint16_t varIdx = 0;
+  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+    {
+      if (VirtAddress == VirtAddVarTab[varIdx] ){
+	  if (true == VirtExistsVarTab[varIdx]){
+	      *Data = VirtDatVarTab[varIdx];
+	      return 0; /* variable found */
+	  }
+      }
+    }
+  return 1; /* variable not found*/
+}
+
+/**
+  * @brief  Writes/upadtes variable data in in the RAM buffer and sets a flag
+  *         to trigger a write to the flash in the background task.
+  *         Blocks until initialization is done.
+  * @param  VirtAddress: Variable virtual address
+  * @param  Data: 16 bit data to be written
+  * @retval Success or error status:
+  *           - 0: ok variable stored in RAM
+  *           - 1: invalid VirtAddress
+  */
+uint16_t EE_WriteVariableBuffered(uint16_t VirtAddress, uint16_t Data)
+{
+  while (false == initialized){
+      vTaskDelay(1); //Wait forever until initialization is done
+  }
+
+  uint16_t varIdx = 0;
+  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++){
+      if (VirtAddress == VirtAddVarTab[varIdx] ){
+	  if (Data != VirtDatVarTab[varIdx]){
+	      /* Only trigger a flash write if the value really changed*/
+	      VirtDatVarTab[varIdx] = Data;
+	      writePending = true;
+	  }
+	  VirtExistsVarTab[varIdx] = true;
+	  return HAL_OK;
+      }
+  }
+  ASSERT(0); //invalid address this shall never happen
+  return HAL_ERROR;
+}
+
+
+/* Background Task parameters configuration and start */
+static ROM TaskParameters_t p =
+  {
+      EE_task_runnable,
+      "EE_Background",
+      256,
+      0,
+      EEPROM_BACKGROUND_PRIORITY + portPRIVILEGE_BIT,
+      0,
+    {
+      { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
+      { (void *)EEPROM_START_ADDRESS, EEPROM_TOTAL_SIZE, portMPU_REGION_READ_WRITE }, // EEPROM
+      { 0, 0, 0 }
+    }
+  };
+
+COMMON RestrictedTask EE_background_task (p);
+
 
 /**
   * @brief  Restore the pages to a known good state in case of page's status
@@ -80,13 +227,6 @@ static uint16_t EE_VerifyPageFullyErased(uint32_t Address);
   */
 uint16_t EE_Init(void)
 {
-
-  /*Prevent initialization multiple times. Should only be invoked once during startup.*/
-  if (initialized == true){
-      return HAL_ERROR;
-  }
-  initialized = true;
-
   /* Copy EEPROM Parameter IDs to the VirtAddVarTab. NOTE: This is not optimal as NB_OF_VAR shall be set to
    * PERSISTENT_DATA_ENTRIES but this value is not available for a define. NB_OF_VAR is slightly to large because
    * some IDs in EEPROM_PARAMETER_ID are skipped but easier to implement. */

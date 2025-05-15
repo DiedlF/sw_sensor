@@ -115,10 +115,6 @@ bool read_init_file( const char * filename)
   char *position;
   unsigned status;
 
-#if ! TEST_MODULE
-  lock_EEPROM( false);
-#endif
-
   // get all readable configuration lines and program data into EEPROM
   while( file_reader.read_line( position))
     {
@@ -169,10 +165,6 @@ bool read_init_file( const char * filename)
 #endif
       ASSERT( ! status);
     }
-
-#if ! TEST_MODULE
-  lock_EEPROM( true);
-#endif
 
   return true;
 }

@@ -112,9 +112,8 @@
 /* Exported types ------------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
-uint16_t EE_Init(void);
-uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data);
-uint16_t EE_WriteVariable(uint16_t VirtAddress, uint16_t Data);
+uint16_t EE_ReadVariableBuffered(uint16_t VirtAddress, uint16_t* Data);
+uint16_t EE_WriteVariableBuffered(uint16_t VirtAddress, uint16_t Data);
 
 #ifdef __cplusplus
 }
