@@ -394,7 +394,7 @@ bool read_software_update(void)
   FIL the_file;
   FRESULT fresult;
   UINT bytes_read;
-  uint32_t flash_address = 0x80000;
+  uint32_t flash_address = 0x60000;
   unsigned status;
   bool last_block_read = false;
 
@@ -444,15 +444,15 @@ bool read_software_update(void)
   pEraseInit.TypeErase = FLASH_TYPEERASE_SECTORS;
   pEraseInit.NbSectors = 1;
   pEraseInit.VoltageRange = VOLTAGE_RANGE_3;
+  pEraseInit.Sector = FLASH_SECTOR_7;
+  status = HAL_FLASHEx_Erase (&pEraseInit, &SectorError);
+  if ((status != HAL_OK) || (SectorError != 0xffffffff))
+    return false;
   pEraseInit.Sector = FLASH_SECTOR_8;
   status = HAL_FLASHEx_Erase (&pEraseInit, &SectorError);
   if ((status != HAL_OK) || (SectorError != 0xffffffff))
     return false;
   pEraseInit.Sector = FLASH_SECTOR_9;
-  status = HAL_FLASHEx_Erase (&pEraseInit, &SectorError);
-  if ((status != HAL_OK) || (SectorError != 0xffffffff))
-    return false;
-  pEraseInit.Sector = FLASH_SECTOR_10;
   status = HAL_FLASHEx_Erase (&pEraseInit, &SectorError);
   if ((status != HAL_OK) || (SectorError != 0xffffffff))
     return false;
@@ -497,8 +497,6 @@ bool read_software_update(void)
 void uSD_handler_runnable (void*)
 {
 restart:
-  bool status = EEPROM_initialize();
-  ASSERT( ! status);
 
   HAL_SD_DeInit (&hsd);
   delay (1000);
@@ -558,7 +556,7 @@ restart:
       __asm volatile ( "dsb" ::: "memory" );
       __asm volatile ( "isb" );
       typedef void(*pFunction)(void);
-      pFunction copy_function_address = *(pFunction *)0x08001c;
+      pFunction copy_function_address = *(pFunction *)0x06001c;
       copy_function_address();
       }
 
