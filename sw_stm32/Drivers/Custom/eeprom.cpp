@@ -84,14 +84,78 @@ static uint16_t EE_Init(void);
 static uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data);
 static uint16_t EE_WriteVariable(uint16_t VirtAddress, uint16_t Data);
 
+bool EE_recover_from_old_layout()
+{
+   /* Check if there is a valid page (value 0x0000..) at  0x80F8000 which is the old layout.
+      Check that 0x080C0000  and 0x080E0000  contains only erased sectors (0xFFFFFFFF) which
+      means that the new flash layout has not been initialized yet. Which means first execution
+      after flashing from the 0.4.0 to a newer version.
+      Recover all existing values with ids < EEPROM_PARAMETER_ID_END  */
+   bool recoverStatus = false;
+
+   if(((*(__IO uint16_t*)0x80F8000) == 0x0000) && ((*(__IO uint16_t*)0x80F8C00) != 0x0000))
+   {
+       if(((*(__IO uint16_t*)PAGE0_BASE_ADDRESS) == 0xFFFF) && ((*(__IO uint16_t*)PAGE1_BASE_ADDRESS) == 0xFFFF))
+       {
+	   /*There is valid data on the first page of the old layout and the new has not been
+	    * initialized yet. Try to recover the old data from the 16 kByte area*/
+	   uint32_t address = 0x80F8000 + 4;
+	   while(address < (0x80F8000 + 0x4000 -2))
+	   {
+	       /* Get virtual address and data from flash address */
+	       uint16_t virtualAddress = (*(__IO uint16_t*)(address + 2));
+	       uint16_t data = (*(__IO uint16_t*)address);
+
+	       /*Find matching virtual address in VirtAddVarTab[index] */
+	       for (int index = 0; index < NB_OF_VAR; index++)
+	       {
+		   if ((VirtAddVarTab[index] != 0x0000 ) && (VirtAddVarTab[index] == virtualAddress))
+		   {
+		       /* Valid virtual address and match. Store for recovery*/
+		       VirtDatVarTab[index] = data;
+		       VirtExistsVarTab[index] = true; /* flag virtual address as found */
+		       recoverStatus = true;
+		   }
+	       }
+	       address = address + 4;
+	    }
+	}
+   }
+   return recoverStatus; /*Return the status if old data has been found and can be recovered*/
+}
+
 void EE_task_runnable(void *)
 {
+  /* Copy EEPROM Parameter IDs to the VirtAddVarTab. NOTE: This is not optimal as NB_OF_VAR shall be set to
+   * PERSISTENT_DATA_ENTRIES but this value is not available for a define. NB_OF_VAR is slightly to large because
+   * some IDs in EEPROM_PARAMETER_ID are skipped but easier to implement. */
+  ASSERT(PERSISTENT_DATA_ENTRIES < NB_OF_VAR);
+  for(unsigned int i = 0; i < PERSISTENT_DATA_ENTRIES; i++){
+      ASSERT(PERSISTENT_DATA[i].id < 0xFFFF); // Only ids < 0xFFFF are allowed.
+      VirtAddVarTab[i] = PERSISTENT_DATA[i].id;
+  }
+
+  /* Check and read data if there is some in the flash from a old version which can be recovered.*/
+  bool recovery_required = EE_recover_from_old_layout();
+
   uint16_t status = HAL_FLASH_Unlock();  /* Only unlock flash if there is really something written*/
   ASSERT(HAL_OK == status);
 
-  status = EE_Init();
+  status = EE_Init();  /* Erases the flash if the status is inconsistent */
   ASSERT(HAL_OK == status);
 
+  /* Recover found old data after initializing the new layout*/
+  if (true == recovery_required)
+  {
+      for (int varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+      {
+	  if (true == VirtExistsVarTab[varIdx])
+     	  {
+	      status = EE_WriteVariable(VirtAddVarTab[varIdx], VirtDatVarTab[varIdx]);
+	      ASSERT(HAL_OK == status); /* This shall never happen */
+     	  }
+      }
+  }
   status = HAL_FLASH_Lock();
   ASSERT(HAL_OK == status);
 
@@ -100,7 +164,7 @@ void EE_task_runnable(void *)
   uint16_t data = 0;
   for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
          {
-
+	   ASSERT(VirtAddVarTab[varIdx] < 0xFFFF); // Only ids < 0xFFFF are allowed.
            status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
            if (status == 0){
                /*variable found*/
@@ -112,7 +176,8 @@ void EE_task_runnable(void *)
                VirtExistsVarTab[varIdx] = false;
            }
          }
-  initialized = true;
+
+  initialized = true; /* Set the EEPROM to initialized and thus make the public interface functioning.*/
 
   for(;;){
       vTaskDelay(1000); /* Sync to flash only once per second */
@@ -226,15 +291,6 @@ COMMON RestrictedTask EE_background_task (p);
   */
 uint16_t EE_Init(void)
 {
-  /* Copy EEPROM Parameter IDs to the VirtAddVarTab. NOTE: This is not optimal as NB_OF_VAR shall be set to
-   * PERSISTENT_DATA_ENTRIES but this value is not available for a define. NB_OF_VAR is slightly to large because
-   * some IDs in EEPROM_PARAMETER_ID are skipped but easier to implement. */
-  ASSERT(PERSISTENT_DATA_ENTRIES < NB_OF_VAR);
-  for(unsigned int i = 0; i < PERSISTENT_DATA_ENTRIES; i++){
-      ASSERT(PERSISTENT_DATA[i].id < 0xFFFF); // Only ids < 0xFFFF are allowed.
-      VirtAddVarTab[i] = PERSISTENT_DATA[i].id;
-  }
-
   uint16_t PageStatus0 = 6, PageStatus1 = 6;
   uint16_t VarIdx = 0;
   uint16_t EepromStatus = 0, ReadStatus = 0;
