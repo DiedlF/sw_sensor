@@ -449,8 +449,8 @@ bool read_software_update(void)
     }
   }
 
-  if (highest_sw_version_found != GIT_TAG_DEC){
-      return false; //The highest found image it nothing new, so finishing here
+  if (highest_sw_version_found <= GIT_TAG_DEC){
+      return false; //The firmware image with the highest version is it nothing new. Finishing here.
   }
 
   // try to open new software image file
