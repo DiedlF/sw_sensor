@@ -240,7 +240,7 @@ CAN_listener_task_runnable (void*)
 		CANpacket txp( CAN_Id_Send_Config_Value, 8);
 		txp.data_w[0] = p.data_h[0]; // the ID we have received
 		txp.data_f[1] = value;
-		CAN_send( txp, 1);
+		CAN_enqueue( txp, 1);
 	      }
 	    break;
 	  }
