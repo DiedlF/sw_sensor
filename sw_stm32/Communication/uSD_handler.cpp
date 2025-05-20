@@ -553,6 +553,9 @@ void uSD_handler_runnable (void*)
 {
 restart:
 
+  // ...just to be sure ...
+  ensure_EEPROM_parameter_integrity();
+
   HAL_SD_DeInit (&hsd);
   delay (1000);
 
@@ -563,7 +566,6 @@ restart:
 
   if(! BSP_PlatformIsDetected())
     {
-      ensure_EEPROM_parameter_integrity();
       setup_file_handling_completed.signal(); // give up waiting for configuration
       watchdog_activator.signal(); // now start the watchdog
 
@@ -584,7 +586,6 @@ restart:
 
   if (fresult != FR_OK)
     {
-      ensure_EEPROM_parameter_integrity();
       setup_file_handling_completed.signal();
       watchdog_activator.signal(); // now start the watchdog
 
@@ -624,7 +625,6 @@ restart:
   if( init_file_read)
     f_rename ("larus_sensor_config.ini", "larus_sensor_config.ini.used");
 
-  ensure_EEPROM_parameter_integrity();
   setup_file_handling_completed.signal();
 
   delay( 100); // give communicator a moment to initialize
@@ -661,76 +661,94 @@ restart:
 	write_crash_dump();
       delay (100);
     }
-  // generate filename based on timestamp
-  char * next = append_string( out_filename, "logger/");
-  next = format_date_time( next);
 
-  write_EEPROM_dump( out_filename); // now we have date+time, start logging
-
-  *next++ = '.';
-  *next++  = 'f';
-  next = format_2_digits( next, sizeof(observations_type) / sizeof(float));
-
-  fresult = f_open (&the_file, out_filename, FA_CREATE_ALWAYS | FA_WRITE);
-  if (fresult != FR_OK)
+  uint32_t last_eeprom_write_tick = EE_GetLastChangeTickTime();
+  while(true)
     {
-      while( true)
+      // generate filename based on timestamp
+      char * next = append_string( out_filename, "logger/");
+      next = format_date_time( next);
+
+      write_EEPROM_dump( out_filename); // now we have date+time, start logging
+
+      *next++ = '.';
+      *next++  = 'f';
+      next = format_2_digits( next, sizeof(observations_type) / sizeof(float));
+
+      fresult = f_open (&the_file, out_filename, FA_CREATE_ALWAYS | FA_WRITE);
+      if (fresult != FR_OK)
 	{
-	notify_take (true); // wait for synchronization by crash detection
-	if( crashfile)
-	  write_crash_dump();
-	}
-    }
-
-  int32_t sync_counter=0;
-
-  while( true) // logger loop synchronized by communicator
-    {
-      notify_take (true); // wait for synchronization by from communicator OR crash detection
-
-      if( crashfile)
-	write_crash_dump();
-
-      memcpy (buf_ptr, (uint8_t*) &output_data.m, sizeof(observations_type));
-      buf_ptr += sizeof(observations_type);
-
-      if (buf_ptr < mem_buffer + MEM_BUFSIZE)
-	continue; // buffer only filled partially
-
-      fresult = f_write (&the_file, mem_buffer, MEM_BUFSIZE, &writtenBytes);
-      if( ! ((fresult == FR_OK) && (writtenBytes == MEM_BUFSIZE)))
-	  {
-	    HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
-	    while( true)
-	      {
-	      notify_take (true); // wait for synchronization by crash detection
-	      if( crashfile)
-		write_crash_dump();
-	      }
-	  }
-
-      uint32_t rest = buf_ptr - (mem_buffer + MEM_BUFSIZE);
-      memcpy (mem_buffer, mem_buffer + MEM_BUFSIZE, rest);
-      buf_ptr = mem_buffer + rest;
-
-#if uSD_LED_STATUS
-      if( (sync_counter & 0x3) == 0)
-	HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
-      else
-	HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
-#endif
-
-      if( ++sync_counter >= 16)
-	{
-	  sync_counter = 0;
-	  f_sync (&the_file);
-
-	  if( landing_detected)
+	  while( true)
 	    {
-	      landing_detected = false;
-#if ACTIVATE_MAGNETIC_3D_MECHANIM
-	      write_magnetic_3D_data();
-#endif
+	    notify_take (true); // wait for synchronization by crash detection
+	    if( crashfile)
+	      write_crash_dump();
+	    }
+	}
+
+      int32_t sync_counter=0;
+
+      while( true) // logger loop synchronized by communicator
+	{
+	  notify_take (true); // wait for synchronization by from communicator OR crash detection
+
+	  if( crashfile)
+	    write_crash_dump();
+
+	  memcpy (buf_ptr, (uint8_t*) &output_data.m, sizeof(observations_type));
+	  buf_ptr += sizeof(observations_type);
+
+	  if (buf_ptr < mem_buffer + MEM_BUFSIZE)
+	    continue; // buffer only filled partially
+
+	  fresult = f_write (&the_file, mem_buffer, MEM_BUFSIZE, &writtenBytes);
+	  if( ! ((fresult == FR_OK) && (writtenBytes == MEM_BUFSIZE)))
+	      {
+		HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
+		while( true)
+		  {
+		  notify_take (true); // wait for synchronization by crash detection
+		  if( crashfile)
+		    write_crash_dump();
+		  }
+	      }
+
+	  uint32_t rest = buf_ptr - (mem_buffer + MEM_BUFSIZE);
+	  memcpy (mem_buffer, mem_buffer + MEM_BUFSIZE, rest);
+	  buf_ptr = mem_buffer + rest;
+
+    #if uSD_LED_STATUS
+	  if( (sync_counter & 0x3) == 0)
+	    HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
+	  else
+	    HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
+    #endif
+
+	  if( ++sync_counter >= 16)
+	    {
+	      sync_counter = 0;
+	      f_sync (&the_file);
+
+	      if( landing_detected)
+		{
+		  landing_detected = false;
+    #if ACTIVATE_MAGNETIC_3D_MECHANIM
+		  write_magnetic_3D_data();
+    #endif
+		}
+	    }
+
+	  /* Check if EEPROM data changed recently */
+	  if (EE_GetLastChangeTickTime() != last_eeprom_write_tick)
+	    {
+	      /* Wait at least three seconds after a data change has been observed before creating a new dump file.
+	       * This prevents that an identical filename is used again. */
+	      if (xTaskGetTickCount() > (last_eeprom_write_tick + (3 * configTICK_RATE_HZ)))
+		{
+		    last_eeprom_write_tick = EE_GetLastChangeTickTime();
+		    f_close(&the_file);
+		    break; /* break inner while loop and start again, which will start a new eeprom dump / logfile */
+		}
 	    }
 	}
     }

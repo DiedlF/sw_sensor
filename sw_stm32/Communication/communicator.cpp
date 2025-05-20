@@ -218,13 +218,10 @@ void communicator_runnable (void*)
 	      if( vector_average_collection.acc_observed_level.abs() < 0.001f)
 		break;
 
-	      communicator_task.set_priority( WATCHDOG_TASK_PRIORITY); // decrease priority
 	      organizer.update_sensor_orientation_data( vector_average_collection);
-	      communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
-
 	      organizer.initialize_before_measurement();
 	      break;
-	    case FINE_TUNE_CALIB:
+	    case FINE_TUNE_CALIB:  // names "straight flight" in Larus Display Menu
 	      vector_average_organizer.source=&(output_data.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_level);
 	      vector_average_organizer.destination->zero();
@@ -256,11 +253,7 @@ void communicator_runnable (void*)
 	      if( fine_tune_sensor_attitude)
 		{
 		  fine_tune_sensor_attitude=false;
-
-		  communicator_task.set_priority( WATCHDOG_TASK_PRIORITY); // decrease priority
 		  organizer.fine_tune_sensor_orientation( vector_average_collection);
-		  communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
-
 		  organizer.initialize_before_measurement();
 		}
 	    }
