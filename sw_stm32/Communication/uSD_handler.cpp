@@ -553,6 +553,9 @@ void uSD_handler_runnable (void*)
 {
 restart:
 
+  // ...just to be sure ...
+  ensure_EEPROM_parameter_integrity();
+
   HAL_SD_DeInit (&hsd);
   delay (1000);
 
@@ -563,7 +566,6 @@ restart:
 
   if(! BSP_PlatformIsDetected())
     {
-      ensure_EEPROM_parameter_integrity();
       setup_file_handling_completed.signal(); // give up waiting for configuration
       watchdog_activator.signal(); // now start the watchdog
 
@@ -584,7 +586,6 @@ restart:
 
   if (fresult != FR_OK)
     {
-      ensure_EEPROM_parameter_integrity();
       setup_file_handling_completed.signal();
       watchdog_activator.signal(); // now start the watchdog
 
@@ -624,7 +625,6 @@ restart:
   if( init_file_read)
     f_rename ("larus_sensor_config.ini", "larus_sensor_config.ini.used");
 
-  ensure_EEPROM_parameter_integrity();
   setup_file_handling_completed.signal();
 
   delay( 100); // give communicator a moment to initialize
