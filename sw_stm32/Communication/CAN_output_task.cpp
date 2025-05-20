@@ -53,7 +53,7 @@ void CAN_task_runnable( void *)
 	}
 
       CANpacket p;
-      while( CAN_pipeline.receive( p))
+      while( CAN_pipeline.receive( p, 0))
 	  CAN_send(p, 1);
 
     }
