@@ -39,8 +39,9 @@ MEMORY
 {
   CCMRAM    (rw)     : ORIGIN = 0x10000000,   LENGTH = 64K
   RAM    	(rw)	 : ORIGIN = 0x20000000,   LENGTH = 128K
-  FLASH     (rx)     : ORIGIN = 0x8000000,    LENGTH = 992K
-  EEPROM (xrw)	: ORIGIN = 0x080F8000, 	LENGTH = 32K
+  FLASH     (rx)     : ORIGIN = 0x8000000,    LENGTH = 384K
+  RESERVED  (rx)     : ORIGIN = 0x8060000,    LENGTH = 384K  /*This block is for the firmware update process*/
+  EEPROM (xrw)       : ORIGIN = 0x080C0000,   LENGTH = 256K
 }
 
 __FLASH_segment_start__ = ORIGIN( FLASH );

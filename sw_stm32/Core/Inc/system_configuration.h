@@ -26,11 +26,11 @@
 #define SRC_SYSTEM_CONFIGURATION_H_
 
 #include "persistent_data.h"
+#include "eeprom.h"
 #include "git-commit-version.h"
 
 #define INCLUDING_NANO			1
 
-#define WRITE_EEPROM_DEFAULTS		0
 #define USE_HARDWARE_EEPROM		1
 #define MEASURE_GNSS_REFRESH_TIME	0
 #define ACTIVATE_USB_NMEA		1
@@ -84,6 +84,7 @@
 
 #define COMMUNICATOR_START_PRIORITY STANDARD_TASK_PRIORITY
 #define MAG_CALCULATOR_PRIORITY	STANDARD_TASK_PRIORITY
+#define EEPROM_BACKGROUND_PRIORITY STANDARD_TASK_PRIORITY
 
 // ISR priorities
 

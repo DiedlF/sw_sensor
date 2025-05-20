@@ -49,9 +49,16 @@
 /* Includes ------------------------------------------------------------------*/
 #include "eeprom.h"
 #include "common.h"
+#include "FreeRTOS_wrapper.h"
+#include "system_configuration.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+
+
+
+
+
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 
@@ -60,6 +67,11 @@ COMMON uint16_t DataVar = 0;
 
 /* Virtual address defined by the user: 0xFFFF value is prohibited */
 COMMON uint16_t VirtAddVarTab[NB_OF_VAR];
+COMMON uint16_t VirtDatVarTab[NB_OF_VAR];
+COMMON bool VirtExistsVarTab[NB_OF_VAR] = {false};
+
+COMMON static bool initialized = false;
+COMMON static bool writePending = false;
 
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -68,15 +80,51 @@ static uint16_t EE_FindValidPage(uint8_t Operation);
 static uint16_t EE_VerifyPageFullWriteVariable(uint16_t VirtAddress, uint16_t Data);
 static uint16_t EE_PageTransfer(uint16_t VirtAddress, uint16_t Data);
 static uint16_t EE_VerifyPageFullyErased(uint32_t Address);
+static uint16_t EE_Init(void);
+static uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data);
+static uint16_t EE_WriteVariable(uint16_t VirtAddress, uint16_t Data);
 
-/**
-  * @brief  Restore the pages to a known good state in case of page's status
-  *   corruption after a power loss.
-  * @param  None.
-  * @retval - Flash error code: on write Flash error
-  *         - FLASH_COMPLETE: on success
-  */
-uint16_t EE_Init(void)
+bool EE_recover_from_old_layout()
+{
+   /* Check if there is a valid page (value 0x0000..) at  0x80F8000 which is the old layout.
+      Check that 0x080C0000  and 0x080E0000  contains only erased sectors (0xFFFFFFFF) which
+      means that the new flash layout has not been initialized yet. Which means first execution
+      after flashing from the 0.4.0 to a newer version.
+      Recover all existing values with ids < EEPROM_PARAMETER_ID_END  */
+   bool recoverStatus = false;
+
+   if(((*(__IO uint16_t*)0x80F8000) == 0x0000) && ((*(__IO uint16_t*)0x80F8C00) != 0x0000))
+   {
+       if(((*(__IO uint16_t*)PAGE0_BASE_ADDRESS) == 0xFFFF) && ((*(__IO uint16_t*)PAGE1_BASE_ADDRESS) == 0xFFFF))
+       {
+	   /*There is valid data on the first page of the old layout and the new has not been
+	    * initialized yet. Try to recover the old data from the 16 kByte area*/
+	   uint32_t address = 0x80F8000 + 4;
+	   while(address < (0x80F8000 + 0x4000 -2))
+	   {
+	       /* Get virtual address and data from flash address */
+	       uint16_t virtualAddress = (*(__IO uint16_t*)(address + 2));
+	       uint16_t data = (*(__IO uint16_t*)address);
+
+	       /*Find matching virtual address in VirtAddVarTab[index] */
+	       for (int index = 0; index < NB_OF_VAR; index++)
+	       {
+		   if ((VirtAddVarTab[index] != 0x0000 ) && (VirtAddVarTab[index] == virtualAddress))
+		   {
+		       /* Valid virtual address and match. Store for recovery*/
+		       VirtDatVarTab[index] = data;
+		       VirtExistsVarTab[index] = true; /* flag virtual address as found */
+		       recoverStatus = true;
+		   }
+	       }
+	       address = address + 4;
+	    }
+	}
+   }
+   return recoverStatus; /*Return the status if old data has been found and can be recovered*/
+}
+
+void EE_task_runnable(void *)
 {
   /* Copy EEPROM Parameter IDs to the VirtAddVarTab. NOTE: This is not optimal as NB_OF_VAR shall be set to
    * PERSISTENT_DATA_ENTRIES but this value is not available for a define. NB_OF_VAR is slightly to large because
@@ -87,6 +135,162 @@ uint16_t EE_Init(void)
       VirtAddVarTab[i] = PERSISTENT_DATA[i].id;
   }
 
+  /* Check and read data if there is some in the flash from a old version which can be recovered.*/
+  bool recovery_required = EE_recover_from_old_layout();
+
+  uint16_t status = HAL_FLASH_Unlock();  /* Only unlock flash if there is really something written*/
+  ASSERT(HAL_OK == status);
+
+  status = EE_Init();  /* Erases the flash if the status is inconsistent */
+  ASSERT(HAL_OK == status);
+
+  /* Recover found old data after initializing the new layout*/
+  if (true == recovery_required)
+  {
+      for (int varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+      {
+	  if (true == VirtExistsVarTab[varIdx])
+     	  {
+	      status = EE_WriteVariable(VirtAddVarTab[varIdx], VirtDatVarTab[varIdx]);
+	      ASSERT(HAL_OK == status); /* This shall never happen */
+     	  }
+      }
+  }
+  status = HAL_FLASH_Lock();
+  ASSERT(HAL_OK == status);
+
+  /* Read all variables to RAM */
+  uint16_t varIdx = 0;
+  uint16_t data = 0;
+  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+         {
+	   ASSERT(VirtAddVarTab[varIdx] < 0xFFFF); // Only ids < 0xFFFF are allowed.
+           status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
+           if (status == 0){
+               /*variable found*/
+               VirtDatVarTab[varIdx] = data;
+               VirtExistsVarTab[varIdx] = true;
+           }
+           else{
+               /*variable not found in flash*/
+               VirtExistsVarTab[varIdx] = false;
+           }
+         }
+
+  initialized = true; /* Set the EEPROM to initialized and thus make the public interface functioning.*/
+
+  for(;;){
+      vTaskDelay(1000); /* Sync to flash only once per second */
+      if (true == writePending){
+	  /* sync ram data to flash*/
+	  status = HAL_FLASH_Unlock();
+	  ASSERT(HAL_OK == status);
+
+	  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+	  {
+	      status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
+	      if ((data != VirtDatVarTab[varIdx]) || (status != 0 )){
+		  /* Write variable to flash if it differs or does not exist yet */
+		  status = EE_WriteVariable(VirtAddVarTab[varIdx], VirtDatVarTab[varIdx]);
+		  ASSERT(HAL_OK == status); /* This shall never happen */
+	      }
+	  }
+	  writePending = false;
+	  status = HAL_FLASH_Lock();
+	  ASSERT(HAL_OK == status);
+      }
+  }
+}
+
+/**
+  * @brief  Returns the last stored variable data, if found, which correspond to
+  *   the passed virtual address from the ram buffer
+  * @param  VirtAddress: Variable virtual address
+  * @param  Data: reference to store the read variable
+  * @retval Success or error status:
+  *           - 0: if variable was found
+  *           - 1: if the variable was not found
+  */
+uint16_t EE_ReadVariableBuffered(uint16_t VirtAddress, uint16_t* Data)
+{
+  while (false == initialized){
+      vTaskDelay(1); //Wait forever until initialization is done
+  }
+
+  uint16_t varIdx = 0;
+  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+    {
+      if (VirtAddress == VirtAddVarTab[varIdx] ){
+	  if (true == VirtExistsVarTab[varIdx]){
+	      *Data = VirtDatVarTab[varIdx];
+	      return 0; /* variable found */
+	  }
+      }
+    }
+  return 1; /* variable not found*/
+}
+
+/**
+  * @brief  Writes/upadtes variable data in in the RAM buffer and sets a flag
+  *         to trigger a write to the flash in the background task.
+  *         Blocks until initialization is done.
+  * @param  VirtAddress: Variable virtual address
+  * @param  Data: 16 bit data to be written
+  * @retval Success or error status:
+  *           - 0: ok variable stored in RAM
+  *           - 1: invalid VirtAddress
+  */
+uint16_t EE_WriteVariableBuffered(uint16_t VirtAddress, uint16_t Data)
+{
+  while (false == initialized){
+      vTaskDelay(1); //Wait forever until initialization is done
+  }
+
+  uint16_t varIdx = 0;
+  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++){
+      if (VirtAddress == VirtAddVarTab[varIdx] ){
+	  if (Data != VirtDatVarTab[varIdx]){
+	      /* Only trigger a flash write if the value really changed*/
+	      VirtDatVarTab[varIdx] = Data;
+	      writePending = true;
+	  }
+	  VirtExistsVarTab[varIdx] = true;
+	  return HAL_OK;
+      }
+  }
+  ASSERT(0); //invalid address this shall never happen
+  return HAL_ERROR;
+}
+
+
+/* Background Task parameters configuration and start */
+static ROM TaskParameters_t p =
+  {
+      EE_task_runnable,
+      "EE_Background",
+      256,
+      0,
+      EEPROM_BACKGROUND_PRIORITY + portPRIVILEGE_BIT,
+      0,
+    {
+      { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
+      { (void *)EEPROM_START_ADDRESS, EEPROM_TOTAL_SIZE, portMPU_REGION_READ_WRITE }, // EEPROM
+      { 0, 0, 0 }
+    }
+  };
+
+COMMON RestrictedTask EE_background_task (p);
+
+
+/**
+  * @brief  Restore the pages to a known good state in case of page's status
+  *   corruption after a power loss.
+  * @param  None.
+  * @retval - Flash error code: on write Flash error
+  *         - FLASH_COMPLETE: on success
+  */
+uint16_t EE_Init(void)
+{
   uint16_t PageStatus0 = 6, PageStatus1 = 6;
   uint16_t VarIdx = 0;
   uint16_t EepromStatus = 0, ReadStatus = 0;
@@ -342,9 +546,10 @@ uint16_t EE_VerifyPageFullyErased(uint32_t Address)
 {
   uint32_t ReadStatus = 1;
   uint16_t AddressValue = 0x5555;
+  uint32_t endAddress = Address + (PAGE_SIZE - 1);
     
   /* Check each active page address starting from end */
-  while (Address <= PAGE0_END_ADDRESS)
+  while (Address <= endAddress)
   {
     /* Get the current location content to be compared with virtual address */
     AddressValue = (*(__IO uint16_t*)Address);

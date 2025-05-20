@@ -77,10 +77,8 @@ bool EEPROM_config_read_write( const CANpacket & p, float & return_value)
     case 1: // set value
       {
 	float value = p.data_f[1];
-	lock_EEPROM( false);
 
 	(void) write_EEPROM_value( id, value); // no way to report errors here ...
-	lock_EEPROM( true);
 	communicator_command_queue.send( SOME_EEPROM_VALUE_HAS_CHANGED, 1);
 	return false; // report "nothing read"
       }
@@ -257,7 +255,7 @@ static ROM TaskParameters_t p =
       0,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { (void *)0x80f8000, 0x8000, portMPU_REGION_READ_WRITE }, // EEPROM
+      { 0, 0, 0 },
       { 0, 0, 0 }
     }
   };
