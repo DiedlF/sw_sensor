@@ -26,6 +26,13 @@
 #include "CAN_output.h"
 #include "communicator.h"
 
+COMMON Queue <CANpacket> CAN_pipeline( 5);
+
+bool CAN_enqueue( const CANpacket &p, unsigned max_delay)
+{
+  CAN_pipeline.send( p, max_delay);
+}
+
 void CAN_task_runnable( void *)
 {
   bool horizon_available = configuration( HORIZON);
@@ -44,6 +51,11 @@ void CAN_task_runnable( void *)
 	  decimator_1_second=10;
 	  CAN_heartbeat();
 	}
+
+      CANpacket p;
+      while( CAN_pipeline.receive( p))
+	  CAN_send(p, 1);
+
     }
 }
 
