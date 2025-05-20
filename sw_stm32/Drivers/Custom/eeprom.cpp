@@ -49,16 +49,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "eeprom.h"
 #include "common.h"
-#include "FreeRTOS_wrapper.h"
 #include "system_configuration.h"
-
+#include "FreeRTOS_wrapper.h"
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-
-
-
-
-
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 
@@ -71,7 +65,8 @@ COMMON uint16_t VirtDatVarTab[NB_OF_VAR];
 COMMON bool VirtExistsVarTab[NB_OF_VAR] = {false};
 
 COMMON static bool initialized = false;
-COMMON static bool writePending = false;
+COMMON static uint32_t lastWriteTickTime = 0;
+COMMON static QueueHandle_t writeSignalQueue = NULL;
 
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -126,6 +121,10 @@ bool EE_recover_from_old_layout()
 
 void EE_task_runnable(void *)
 {
+  BaseType_t queueStatus = 0;
+  writeSignalQueue = xQueueCreate(1,0); /* Create a signal queue to the background writing task */
+  ASSERT(NULL != writeSignalQueue); /* Must never happen */
+
   /* Copy EEPROM Parameter IDs to the VirtAddVarTab. NOTE: This is not optimal as NB_OF_VAR shall be set to
    * PERSISTENT_DATA_ENTRIES but this value is not available for a define. NB_OF_VAR is slightly to large because
    * some IDs in EEPROM_PARAMETER_ID are skipped but easier to implement. */
@@ -177,28 +176,29 @@ void EE_task_runnable(void *)
            }
          }
 
+  lastWriteTickTime = xTaskGetTickCount(); /* Initialize last write tick time with read out tick time */
   initialized = true; /* Set the EEPROM to initialized and thus make the public interface functioning.*/
 
   for(;;){
-      vTaskDelay(1000); /* Sync to flash only once per second */
-      if (true == writePending){
-	  /* sync ram data to flash*/
-	  status = HAL_FLASH_Unlock();
-	  ASSERT(HAL_OK == status);
+      queueStatus = xQueueReceive(writeSignalQueue, 0, portMAX_DELAY); /* Wait for a write trigger signal forever */
+      ASSERT(pdPASS == queueStatus);
 
-	  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
-	  {
-	      status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
-	      if ((data != VirtDatVarTab[varIdx]) || (status != 0 )){
-		  /* Write variable to flash if it differs or does not exist yet */
-		  status = EE_WriteVariable(VirtAddVarTab[varIdx], VirtDatVarTab[varIdx]);
-		  ASSERT(HAL_OK == status); /* This shall never happen */
-	      }
+      /* sync ram data to flash*/
+      status = HAL_FLASH_Unlock();
+      ASSERT(HAL_OK == status);
+
+      for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+      {
+	  status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
+	  if ((data != VirtDatVarTab[varIdx]) || (status != 0 )){
+	      /* Write variable to flash if it differs or does not exist yet */
+	      status = EE_WriteVariable(VirtAddVarTab[varIdx], VirtDatVarTab[varIdx]);
+	      ASSERT(HAL_OK == status); /* This shall never happen */
+	      lastWriteTickTime = xTaskGetTickCount(); /* Update last write tick time */
 	  }
-	  writePending = false;
-	  status = HAL_FLASH_Lock();
-	  ASSERT(HAL_OK == status);
       }
+      status = HAL_FLASH_Lock();
+      ASSERT(HAL_OK == status);
   }
 }
 
@@ -250,9 +250,10 @@ uint16_t EE_WriteVariableBuffered(uint16_t VirtAddress, uint16_t Data)
   for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++){
       if (VirtAddress == VirtAddVarTab[varIdx] ){
 	  if (Data != VirtDatVarTab[varIdx]){
-	      /* Only trigger a flash write if the value really changed*/
+	      /* Only trigger a flash write if the value really changed */
 	      VirtDatVarTab[varIdx] = Data;
-	      writePending = true;
+	      lastWriteTickTime = xTaskGetTickCount();
+	      xQueueSend(writeSignalQueue, 0, 0); /* Send a trigger signal. Ignore if signal already in queue */
 	  }
 	  VirtExistsVarTab[varIdx] = true;
 	  return HAL_OK;
@@ -262,6 +263,10 @@ uint16_t EE_WriteVariableBuffered(uint16_t VirtAddress, uint16_t Data)
   return HAL_ERROR;
 }
 
+uint32_t EE_GetLastChangeTickTime(void)
+{
+  return lastWriteTickTime;
+}
 
 /* Background Task parameters configuration and start */
 static ROM TaskParameters_t p =
