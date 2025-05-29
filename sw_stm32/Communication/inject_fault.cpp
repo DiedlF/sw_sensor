@@ -34,10 +34,11 @@ volatile void recursion(void)
   recursion();
 }
 
-void runnable( void * p_fault_type)
+void runnable( void *)
 {
-  delay( 10000);
-  switch( *(unsigned *)p_fault_type)
+  unsigned fault_type = INJECT_ERROR_NUMBER;
+  delay( 30000);
+  switch( fault_type)
   {
     case 1:
 	// try bad memory access
@@ -83,6 +84,11 @@ void runnable( void * p_fault_type)
 	    delay(1);
 	  }
       break;
+    case 10:
+      volatile unsigned test_data;
+      test_data = *(unsigned*)(0x20002000 - 4); // illegal read access
+      *(unsigned*)(0x20002000 - 4) = 0x12345678; // illegal write access
+      break;
     default:
       while( true) // defensively: go sleeping
 	suspend();
@@ -92,7 +98,7 @@ void runnable( void * p_fault_type)
     suspend();
 }
 
-RestrictedTask inject_fault( runnable, "FAULT", configMINIMAL_STACK_SIZE, (void *)&fault_type, STANDARD_TASK_PRIORITY + 4);
+RestrictedTask inject_fault( runnable, "FAULT", configMINIMAL_STACK_SIZE, 0, STANDARD_TASK_PRIORITY + 4);
 
 #endif
 
