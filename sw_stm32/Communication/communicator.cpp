@@ -66,6 +66,14 @@ typedef struct
   unsigned counter;
 } vector_average_organizer_t;
 
+void report_horizon_avalability( void)
+{
+  if( configuration (HORIZON) )
+	update_system_state_clear( HORIZON_NOT_AVAILABLE);
+  else
+	update_system_state_set( HORIZON_NOT_AVAILABLE);
+}
+
 void communicator_runnable (void*)
 {
   vector_average_organizer_t vector_average_organizer={0};
@@ -80,6 +88,7 @@ void communicator_runnable (void*)
   organizer_t organizer;
 
   organizer.initialize_before_measurement();
+  report_horizon_avalability();
 
   uint16_t GNSS_count = 0;
 
@@ -220,6 +229,7 @@ void communicator_runnable (void*)
 
 	      organizer.update_sensor_orientation_data( vector_average_collection);
 	      organizer.initialize_before_measurement();
+	      report_horizon_avalability();
 	      break;
 	    case FINE_TUNE_CALIB:  // names "straight flight" in Larus Display Menu
 	      vector_average_organizer.source=&(output_data.m.acc);
@@ -231,6 +241,7 @@ void communicator_runnable (void*)
 
 	    case SOME_EEPROM_VALUE_HAS_CHANGED:
 	      organizer.initialize_before_measurement();
+	      report_horizon_avalability();
 	      break;
 
 	    case NO_COMMAND:
@@ -255,6 +266,7 @@ void communicator_runnable (void*)
 		  fine_tune_sensor_attitude=false;
 		  organizer.fine_tune_sensor_orientation( vector_average_collection);
 		  organizer.initialize_before_measurement();
+		  report_horizon_avalability();
 		}
 	    }
 	}

@@ -645,7 +645,7 @@ restart:
     while( 1)
 	{
 	notify_take (true); // wait for synchronization by crash detection
-	if( crashfile)
+	if( crashfile && ! user_initiated_reset)
 	  write_crash_dump();
 	}
 
@@ -654,8 +654,8 @@ restart:
   // wait until a GNSS timestamp is available.
   while (output_data.c.sat_fix_type == 0)
     {
-      if( crashfile)
-	write_crash_dump();
+      if( crashfile && ! user_initiated_reset)
+	  write_crash_dump();
       delay (100);
     }
 
@@ -681,6 +681,9 @@ restart:
 	    if( crashfile)
 	      write_crash_dump();
 	    }
+	notify_take (true); // wait for synchronization by crash detection
+	if( crashfile && ! user_initiated_reset)
+	  write_crash_dump();
 	}
 
       int32_t sync_counter=0;
@@ -691,6 +694,8 @@ restart:
 
 	  if( crashfile)
 	    write_crash_dump();
+	if( crashfile && ! user_initiated_reset)
+	  write_crash_dump();
 
 	  memcpy (buf_ptr, (uint8_t*) &output_data.m, sizeof(observations_type));
 	  buf_ptr += sizeof(observations_type);
@@ -705,7 +710,7 @@ restart:
 		while( true)
 		  {
 		  notify_take (true); // wait for synchronization by crash detection
-		  if( crashfile)
+		  if( crashfile && ! user_initiated_reset)
 		    write_crash_dump();
 		  }
 	      }
@@ -786,6 +791,7 @@ extern "C" void emergency_write_crashdump( char * file, int line)
   }
 
 COMMON bool watchdog_has_been_triggered = false;
+COMMON bool user_initiated_reset = false;
 
 //!< helper task to stop everything and launch emergency logging
 void kill_amok_running_task( void *)

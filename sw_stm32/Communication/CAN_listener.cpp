@@ -229,6 +229,9 @@ CAN_listener_task_runnable (void*)
 	  case CMD_TUNE:
 	    communicator_command_queue.send( FINE_TUNE_CALIB, 1);
 	    break;
+	  case CMD_RESET_SENSOR:
+	    ASSERT(false); // trigger exception that way
+	    break;
 
 	  default: // try to interpret the command as "set" or "get" value
 	    float value;
