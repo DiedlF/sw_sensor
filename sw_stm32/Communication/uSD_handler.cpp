@@ -46,7 +46,6 @@ ROM uint8_t SHA_INITIALIZATION[] = "presently a well-known string";
 
 extern Semaphore setup_file_handling_completed;
 extern uint32_t UNIQUE_ID[4];
-extern bool reset_by_watchdog_requested;
 
 COMMON char *crashfile;
 COMMON unsigned crashline;

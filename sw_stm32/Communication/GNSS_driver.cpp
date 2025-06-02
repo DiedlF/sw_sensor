@@ -98,12 +98,7 @@ DMA1_Stream1_IRQHandler (void)
   portEND_SWITCHING_ISR(HigherPriorityTaskWoken);
 }
 
-#define GPS_DMA_buffer_SIZE (sizeof( uBlox_pvt) + 8) // plus "u B class id size1 size2 ... cks1 cks2"
-
-#define GPS_RELPOS_DMA_buffer_SIZE (sizeof( uBlox_relpos_NED) + 8) // plus "u B class id size1 size2 ... cks1 cks2"
-#define RECEIVE_BUFFER_SIZE (GPS_DMA_buffer_SIZE+GPS_RELPOS_DMA_buffer_SIZE)
-
-static uint8_t __ALIGNED(256) buffer[RECEIVE_BUFFER_SIZE];
+uint8_t __ALIGNED(USART_3_RX_BUFFER_SIZE_ROUND_UP) USART_3_RX_buffer[USART_3_RX_BUFFER_SIZE];
 
 #if MEASURE_GNSS_REFRESH_TIME
 uint64_t getTime_usec_privileged(void);
@@ -123,6 +118,8 @@ USART_3_runnable (void *using_DGNSS)
   MX_USART3_UART_Init ();
   volatile HAL_StatusTypeDef result;
 
+  drop_privileges();
+
   while (true)
     {
 
@@ -135,7 +132,7 @@ USART_3_runnable (void *using_DGNSS)
       start = getTime_usec_privileged();
 #endif
 
-      result = HAL_UART_Receive_DMA (&huart3, buffer, buffer_size);
+      result = HAL_UART_Receive_DMA (&huart3, USART_3_RX_buffer, buffer_size);
       if (result != HAL_OK)
 	{
 	  HAL_UART_Abort (&huart3);
@@ -164,9 +161,9 @@ USART_3_runnable (void *using_DGNSS)
 
       GNSS_Result result;
       if (buffer_size == GPS_DMA_buffer_SIZE + GPS_RELPOS_DMA_buffer_SIZE)
-	result = GNSS.update_combined (buffer);
+	result = GNSS.update_combined (USART_3_RX_buffer);
       else
-	result = GNSS.update (buffer);
+	result = GNSS.update (USART_3_RX_buffer);
 
       if (result == GNSS_ERROR)
 	{
