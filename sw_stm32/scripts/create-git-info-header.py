@@ -60,11 +60,30 @@ with open(filename, "w+") as file:
     file.write(committimestring+'\n')
     file.write(taginfostring+'\n')
     file.write(tagdec+'\n')
-    
+
 
 # Put the Git Tag information into the pack.toml file for software update generation
 tomltemplate = "scripts/template_pack.toml"
-tomldestination = "Image_Loader/pack.toml"
+tomldestination = "scripts/pack.toml"
+filelines = None
+with open(tomltemplate, "r") as file:
+    # Read current file lines into a lis
+    filelines = file.readlines()
+
+# Update sw_version information in line
+for index in range(len(filelines)):
+    if 'sw_version' in filelines[index]:
+        filelines[index] = 'sw_version = \"{}.{}.{}.{}\"'.format(first,second,third,build)
+    if 'name = "larus_sensorVERSION.bin' in filelines[index]:
+        filelines[index] = 'name = \"larus_sensor_v1_v{}-{}-{}-{}.bin\"\n'.format(first,second,third,build)
+
+# Write updated file content
+with open(tomldestination, "w") as file:
+    file.writelines(filelines)
+    
+# Put the same information also into the pack_legacy.toml file for the creation of binary images for updates from sensor versions up to 0.4.0
+tomltemplate = "scripts/template_pack_legacy.toml"
+tomldestination = "scripts/pack_legacy.toml"
 filelines = None
 with open(tomltemplate, "r") as file:
     # Read current file lines into a lis
@@ -78,7 +97,4 @@ for index in range(len(filelines)):
 # Write updated file content
 with open(tomldestination, "w") as file:
     file.writelines(filelines)
-
-    
-
 
