@@ -10,3 +10,4 @@ sw_stm32/FLASH/
 sw_stm32/scripts/pack.toml
 sw_stm32/scripts/pack_legacy.toml
 sw_stm32/larus_sensor*.bin
+sw_stm32/larus_sensor_V2_image.bin
