@@ -131,10 +131,23 @@ class Binary():
         with open(self.name, "wb") as bin_file:
             bin_file.write(binary)
 
-print("Larus App Image Packer")
-with open("Image_Loader/pack.toml", "r") as f:
-    spec = toml.load(f)
-    image = Binary(spec["image"])
-    image.read_new_app(spec["app"])
-    image.read_copy_app(spec["copy"])
-    image.write_file()
+if ((len(sys.argv) == 2) and ("LEGACY" in str(sys.argv[1]))):
+    print("Larus App Image Packer - Legacy")
+    with open("scripts/pack_legacy.toml", "r") as f:
+        spec = toml.load(f)
+        image = Binary(spec["image"])
+        image.read_new_app(spec["app"])
+        image.read_copy_app(spec["copy"])
+        image.write_file()
+
+else:
+    print("Larus App Image Packer")
+    with open("scripts/pack.toml", "r") as f:
+        spec = toml.load(f)
+        image = Binary(spec["image"])
+        image.read_new_app(spec["app"])
+        image.read_copy_app(spec["copy"])
+        image.write_file()
+
+
+

@@ -4,7 +4,7 @@ addr_start = 0x0800_0000
 addr_max = 0x0805_ffff
 
 [copy]
-elf = "Image_Loader/copy_stm32f407_1m-806.elf"
+elf = "scripts/copy_stm32f407_1m-806.elf"
 addr_start = 0x0806_1000
 addr_max = 0x0806_1fff
 
