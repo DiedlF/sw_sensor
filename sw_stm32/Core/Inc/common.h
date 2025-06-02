@@ -27,7 +27,7 @@
 extern uint32_t __common_data_start__[];
 extern uint32_t __common_data_end__[];
 extern uint32_t _Common_Data_Region_Size[];
-#define COMMON_SIZE ( (uint32_t) _Common_Data_Region_Size) // check linker *.ld file !
+#define COMMON_SIZE ( (uint32_t) _Common_Data_Region_Size) // check file STM32F407VGTX_FLASH.ld !
 #define COMMON_BLOCK __common_data_start__
 #define COMMON __attribute__ ((section ("common_data")))
 
