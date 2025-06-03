@@ -691,10 +691,8 @@ restart:
 	{
 	  notify_take (true); // wait for synchronization by from communicator OR crash detection
 
-	  if( crashfile)
+	  if( crashfile && ! user_initiated_reset)
 	    write_crash_dump();
-	if( crashfile && ! user_initiated_reset)
-	  write_crash_dump();
 
 	  memcpy (buf_ptr, (uint8_t*) &output_data.m, sizeof(observations_type));
 	  buf_ptr += sizeof(observations_type);
