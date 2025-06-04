@@ -36,7 +36,7 @@
 #define ACTIVATE_USB_NMEA		1
 #define CAN_RX_ERROR_REPORT		1
 #define CRASFILE_ON_USER_RESET		1
-
+#define LIMIT_DENSITY_CORRECTION(x) 	ASSERT(x < 1.15 && x > 0.85);
 #define WITH_EXTERNAL_IMU		0
 
 #define RUN_GNSS			1
