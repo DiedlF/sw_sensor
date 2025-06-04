@@ -74,6 +74,21 @@ void report_horizon_avalability( void)
 	update_system_state_set( HORIZON_NOT_AVAILABLE);
 }
 
+static ROM TaskParameters_t usart_3_task_param =
+  {
+      USART_3_runnable,
+      "USART3",
+      256,
+      (void *)&TRUE,
+      (STANDARD_TASK_PRIORITY+1) | portPRIVILEGE_BIT, // first: start privileged
+      0,
+    {
+      { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
+      { USART_3_RX_buffer, USART_3_RX_BUFFER_SIZE_ROUND_UP, portMPU_REGION_READ_ONLY },
+      { 0, 0, 0 }
+    }
+  };
+
 void communicator_runnable (void*)
 {
   vector_average_organizer_t vector_average_organizer={0};
@@ -103,7 +118,12 @@ void communicator_runnable (void*)
     {
     case GNSS_M9N:
       {
-	Task usart3_task (USART_3_runnable, "GNSS", 256, (void *)&FALSE, STANDARD_TASK_PRIORITY+1);
+	TaskParameters_t parameters = usart_3_task_param;
+	parameters.pvParameters = (void *)&FALSE;
+
+	acquire_privileges();
+	RestrictedTask t( parameters);
+	drop_privileges();
 
 	while (!GNSS_new_data_ready) // lousy spin lock !
 	  delay (100);
@@ -116,7 +136,13 @@ void communicator_runnable (void*)
     case GNSS_F9P_F9H: // extra task for 2nd GNSS module required
       {
 	  {
-	    Task usart3_task (USART_3_runnable, "GNSS", 256, (void *)&FALSE, STANDARD_TASK_PRIORITY+1);
+	    TaskParameters_t parameters = usart_3_task_param;
+	    parameters.pvParameters = (void *)&FALSE;
+
+	    acquire_privileges();
+	    RestrictedTask t( parameters);
+	    drop_privileges();
+
 	    Task usart4_task (USART_4_runnable, "D-GNSS", 256, 0, STANDARD_TASK_PRIORITY + 1);
 	  }
 
@@ -130,7 +156,9 @@ void communicator_runnable (void*)
       break;
     case GNSS_F9P_F9P: // no extra task for 2nd GNSS module
       {
-	Task usart3_task (USART_3_runnable, "GNSS", 256, (void *)&TRUE, STANDARD_TASK_PRIORITY+1);
+	acquire_privileges();
+	RestrictedTask t( usart_3_task_param);
+	drop_privileges();
 
 	while (!GNSS_new_data_ready) // lousy spin lock !
 	  delay (100);

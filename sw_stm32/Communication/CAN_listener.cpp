@@ -29,6 +29,7 @@
 #include "candriver.h"
 #include "CAN_distributor.h"
 #include "NMEA_format.h"
+#include "watchdog_handler.h"
 
 #define CAN_Id_Send_Config_Value 0x12f
 
@@ -230,6 +231,9 @@ CAN_listener_task_runnable (void*)
 	    communicator_command_queue.send( FINE_TUNE_CALIB, 1);
 	    break;
 	  case CMD_RESET_SENSOR:
+#if CRASFILE_ON_USER_RESET == 0
+	    user_initiated_reset = true;
+#endif
 	    ASSERT(false); // trigger exception that way
 	    break;
 

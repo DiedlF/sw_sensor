@@ -46,7 +46,6 @@ ROM uint8_t SHA_INITIALIZATION[] = "presently a well-known string";
 
 extern Semaphore setup_file_handling_completed;
 extern uint32_t UNIQUE_ID[4];
-extern bool reset_by_watchdog_requested;
 
 COMMON char *crashfile;
 COMMON unsigned crashline;
@@ -692,10 +691,8 @@ restart:
 	{
 	  notify_take (true); // wait for synchronization by from communicator OR crash detection
 
-	  if( crashfile)
+	  if( crashfile && ! user_initiated_reset)
 	    write_crash_dump();
-	if( crashfile && ! user_initiated_reset)
-	  write_crash_dump();
 
 	  memcpy (buf_ptr, (uint8_t*) &output_data.m, sizeof(observations_type));
 	  buf_ptr += sizeof(observations_type);
