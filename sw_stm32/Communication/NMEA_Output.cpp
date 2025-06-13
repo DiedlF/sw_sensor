@@ -39,6 +39,7 @@
 
 COMMON string_buffer_t __ALIGNED( sizeof(string_buffer_t)) NMEA_buf;
 extern USBD_HandleTypeDef hUsbDeviceFS; // from usb_device.c
+extern Mutex GNSS_data_guard;
 
 static void NMEA_runnable (void* data)
 {
@@ -94,12 +95,16 @@ static void NMEA_runnable (void* data)
       NMEA_buf.length = 0; // start at the beginning of the buffer
       format_NMEA_string_fast( output_data, NMEA_buf, horizon_available);
 #if NMEA_DECIMATION_RATIO == 0
+      GNSS_data_guard.lock();
       format_NMEA_string_slow( output_data, NMEA_buf);
+      GNSS_data_guard.release();
 #else
       if( --decimating_counter == 0)
 	{
 	  decimating_counter = NMEA_DECIMATION_RATIO;
+	  GNSS_data_guard.lock();
 	  format_NMEA_string_slow( output_data, NMEA_buf);
+	  GNSS_data_guard.release();
 	}
 #endif
       //Check if there is a CAN Message received which needs to be replayed via a Larus NMEA PLARS Sentence.

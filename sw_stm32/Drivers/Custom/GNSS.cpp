@@ -33,12 +33,24 @@
 COMMON bool GNSS_new_data_ready;
 COMMON bool D_GNSS_new_data_ready;
 COMMON int64_t FAT_time; //!< DOS FAT time for file usage
+COMMON Mutex GNSS_data_guard;
 
 #define SCALE_MM 0.001f
 #define SCALE_MM_NEG -0.001f
 #define SCALE_CM 0.01f
 #define DEG_2_METER 111111.111e-7f // (10000 / 90) m / degree on great circle
 #define ANGLE_SCALE (double)1e-7
+
+void GNSS_data_lock( unsigned function)
+{
+  if( function)
+    {
+      bool success = GNSS_data_guard.lock(2);
+      ASSERT( success);
+    }
+  else
+    GNSS_data_guard.release();
+}
 
 GNSS_type::GNSS_type( coordinates_t & coo) :
 		coordinates( coo),
@@ -95,6 +107,8 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 	else
 	  coordinates.sat_fix_type &= ! SAT_FIX;
 
+	GNSS_data_guard.lock();
+
 	if (latitude_reference == 0)
 	{
 		latitude_reference = pvt.latitude;
@@ -125,6 +139,8 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 	coordinates.nano   = pvt.nano;
 	coordinates.speed_acc = pvt.sAcc * SCALE_MM;
 #endif
+
+	GNSS_data_guard.release();
 
 	float velocity_north = pvt.velocity[NORTH] * SCALE_MM;
 	float velocity_east  = pvt.velocity[EAST] * SCALE_MM;
