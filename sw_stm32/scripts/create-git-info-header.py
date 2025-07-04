@@ -75,7 +75,7 @@ for index in range(len(filelines)):
     if 'sw_version' in filelines[index]:
         filelines[index] = 'sw_version = \"{}.{}.{}.{}\"'.format(first,second,third,build)
     if 'name = "larus_sensorVERSION.bin' in filelines[index]:
-        filelines[index] = 'name = \"larus_sensor_V2_v{}-{}-{}-{}.bin\"\n'.format(first,second,third,build)
+        filelines[index] = 'name = \"larus_sensor_v{}-{}-{}-{}.bin\"\n'.format(first,second,third,build)
 
 # Write updated file content
 with open(tomldestination, "w") as file:
