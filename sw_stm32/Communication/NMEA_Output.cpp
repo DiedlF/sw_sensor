@@ -123,8 +123,11 @@ static void NMEA_runnable (void* data)
       {
 	  format_PLARS(value, QNH, next);
       }
+      if (get_vario_mode_updates(value))
+      {
+	  format_PLARS(value, CIR, next);  //value is converted from CAN to NMEA definition within.
+      }
       NMEA_buf.length = next - NMEA_buf.string;
-
 
 
 #if ACTIVATE_USB_NMEA
