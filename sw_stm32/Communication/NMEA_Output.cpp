@@ -47,20 +47,17 @@ static void NMEA_runnable (void* data)
 
   bool horizon_available = configuration( HORIZON);
 
-  #if ACTIVATE_USB_NMEA
+#if ACTIVATE_USB_NMEA
   MX_USB_DEVICE_Init();
-  update_system_state_set( USB_OUTPUT_ACTIVE);
   delay( 1);
 #endif
 
 #if ACTIVATE_USART_2_NMEA
   USART_2_Init ();
-  update_system_state_set( USART_2_OUTPUT_ACTIVE);
   delay( 1);
 #endif
 #if ACTIVATE_USART_1_NMEA
   USART_1_Init ();
-  update_system_state_set( USART_1_OUTPUT_ACTIVE);
   delay( 1);
 #endif
 
