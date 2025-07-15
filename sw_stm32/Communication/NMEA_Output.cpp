@@ -39,6 +39,7 @@
 
 COMMON string_buffer_t __ALIGNED( sizeof(string_buffer_t)) NMEA_buf;
 extern USBD_HandleTypeDef hUsbDeviceFS; // from usb_device.c
+extern Mutex GNSS_data_guard;
 
 static void NMEA_runnable (void* data)
 {
@@ -46,20 +47,17 @@ static void NMEA_runnable (void* data)
 
   bool horizon_available = configuration( HORIZON);
 
-  #if ACTIVATE_USB_NMEA
+#if ACTIVATE_USB_NMEA
   MX_USB_DEVICE_Init();
-  update_system_state_set( USB_OUTPUT_ACTIVE);
   delay( 1);
 #endif
 
 #if ACTIVATE_USART_2_NMEA
   USART_2_Init ();
-  update_system_state_set( USART_2_OUTPUT_ACTIVE);
   delay( 1);
 #endif
 #if ACTIVATE_USART_1_NMEA
   USART_1_Init ();
-  update_system_state_set( USART_1_OUTPUT_ACTIVE);
   delay( 1);
 #endif
 
@@ -94,12 +92,16 @@ static void NMEA_runnable (void* data)
       NMEA_buf.length = 0; // start at the beginning of the buffer
       format_NMEA_string_fast( output_data, NMEA_buf, horizon_available);
 #if NMEA_DECIMATION_RATIO == 0
+      GNSS_data_guard.lock();
       format_NMEA_string_slow( output_data, NMEA_buf);
+      GNSS_data_guard.release();
 #else
       if( --decimating_counter == 0)
 	{
 	  decimating_counter = NMEA_DECIMATION_RATIO;
+	  GNSS_data_guard.lock();
 	  format_NMEA_string_slow( output_data, NMEA_buf);
+	  GNSS_data_guard.release();
 	}
 #endif
       //Check if there is a CAN Message received which needs to be replayed via a Larus NMEA PLARS Sentence.
@@ -121,8 +123,11 @@ static void NMEA_runnable (void* data)
       {
 	  format_PLARS(value, QNH, next);
       }
+      if (get_vario_mode_updates(value))
+      {
+	  format_PLARS(value, CIR, next);  //value is converted from CAN to NMEA definition within.
+      }
       NMEA_buf.length = next - NMEA_buf.string;
-
 
 
 #if ACTIVATE_USB_NMEA

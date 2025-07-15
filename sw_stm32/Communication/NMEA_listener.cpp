@@ -111,6 +111,30 @@ void NMEA_listener_task_runnable( void *)
 			  can_packet.data_f[1] = value;
 			  CAN_enqueue(can_packet, portMAX_DELAY);
 			}
+		      else if (strncmp(rxNMEASentence,"$PLARS,H,CIR,0",14) == 0)  //Circling 0 => STF mode
+			{
+			  can_packet.data_h[0] = SYSWIDECONFIG_ITEM_ID_VARIO_MODE;
+			  can_packet.data_b[2] = 1;//1 is STF mode on can
+			  CAN_enqueue(can_packet, portMAX_DELAY);
+			}
+		      else if (strncmp(rxNMEASentence,"$PLARS,H,CIR,1",14) == 0) // Circling 1 => Vario mode
+			{
+			  can_packet.data_h[0] = SYSWIDECONFIG_ITEM_ID_VARIO_MODE;
+			  can_packet.data_b[2] = 0; //0 is vario mode on can
+			  CAN_enqueue(can_packet, portMAX_DELAY);
+			}
+		      else if (strncmp(rxNMEASentence,"$g,s0,",6) == 0)  //Remote Control Vario mode
+			{
+			  can_packet.data_h[0] = SYSWIDECONFIG_ITEM_ID_VARIO_MODE;
+			  can_packet.data_b[2] = 1; //vario/circling mode on can
+			  CAN_enqueue(can_packet, portMAX_DELAY);
+			}
+		      else if (strncmp(rxNMEASentence,"$g,s1,",6) == 0) //Remote Control STF mode
+			{
+			  can_packet.data_h[0] = SYSWIDECONFIG_ITEM_ID_VARIO_MODE;
+			  can_packet.data_b[2] = 0; //SpeedToFly/cruising mode on can
+			  CAN_enqueue(can_packet, portMAX_DELAY);
+			}
 		    }
 		  i = 0;
 		  len = 0;

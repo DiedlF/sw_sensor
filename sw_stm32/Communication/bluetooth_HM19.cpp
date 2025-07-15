@@ -220,7 +220,6 @@ bool Bluetooth_Init(void)
 #endif
       response=Bluetooth_Cmd(resetModule);
       /*Seems that bluetooth modules is configured and answers at 115200 baud.*/
-      update_system_state_set(BLUEZ_OUTPUT_ACTIVE);
     }
 
   delay(500); /*Delay after last AT command.*/

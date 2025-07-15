@@ -101,8 +101,8 @@ inline float TEMP_CONVERSION( int16_t x)
 
 COMMON Queue<CANpacket> can_packet_q(10,"CAN_RX");
 
-COMMON static float32_t latest_mc = 0.0, latest_bal = 0.0, latest_bugs = 0.0, latest_qnh = 0.0;
-COMMON static bool new_mc = false, new_bal = false, new_bugs = false, new_qnh = false;
+COMMON static float32_t latest_mc = 0.0, latest_bal = 0.0, latest_bugs = 0.0, latest_qnh = 0.0, latest_vario_mode = 0.0;
+COMMON static bool new_mc = false, new_bal = false, new_bugs = false, new_qnh = false, new_vario_mode = false;
 
 bool get_mc_updates(float32_t &value)
 {
@@ -140,6 +140,16 @@ bool get_qnh_updates(float32_t &value)
        new_qnh = false;
        value = latest_qnh;
        return true;
+    }
+  return false;
+}
+
+bool get_vario_mode_updates(float32_t &value)
+{
+  if (new_vario_mode){
+      new_vario_mode = false;
+      value = latest_vario_mode;
+      return true;
     }
   return false;
 }
@@ -209,6 +219,11 @@ CAN_listener_task_runnable (void*)
 	  case SYSWIDECONFIG_ITEM_ID_QNH:
 	    latest_qnh = p.data_f[1];
 	    new_qnh = true;
+	    break;
+
+	  case SYSWIDECONFIG_ITEM_ID_VARIO_MODE:
+	    latest_vario_mode = (float)p.data_b[2];
+	    new_vario_mode = true;
 	    break;
 
 	  case CMD_MEASURE_LEFT:

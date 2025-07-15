@@ -104,4 +104,9 @@
 #define TRACE_ISR			0
 #define INJECT_ERROR_NUMBER		0
 
+void GNSS_data_lock( unsigned x);
+#define ACQUIRE_GNSS_DATA_GUARD() GNSS_data_lock(1);
+#define RELEASE_GNSS_DATA_GUARD() GNSS_data_lock(0);
+
+
 #endif /* SRC_SYSTEM_CONFIGURATION_H_ */

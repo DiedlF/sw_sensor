@@ -548,18 +548,10 @@ bool read_software_update(void)
 void uSD_handler_runnable (void*)
 {
 restart:
-
   // ...just to be sure ...
   ensure_EEPROM_parameter_integrity();
 
   HAL_SD_DeInit (&hsd);
-  delay (1000);
-
-  // wait max. 10s until sd card is detected
-  for( int i=10; i>0 && (! BSP_PlatformIsDetected()); --i)
-      delay (1000);
-  delay (100); // wait until card is plugged correctly
-
   if(! BSP_PlatformIsDetected())
     {
       setup_file_handling_completed.signal(); // give up waiting for configuration
@@ -573,6 +565,7 @@ restart:
 	}
     }
 
+  delay(500); // ensure that there is some wait time after inserting a sd-card
   HAL_StatusTypeDef hresult = HAL_SD_Init (&hsd);
   if( hresult != HAL_OK)
     goto restart;
