@@ -18,6 +18,7 @@
   - No crashdumps on the sd-card  after at least 30min flying.
   - AHRS, Vario, Wind, Barometric/GNSS altitude and TrueAirspeed information are reasonable
   - MCready sync is working between Larus Frontend and XCSOAR.
+- Perform a testflight with some right and left turns with a clean (erased) EEPROM FLASH in order to verify that the automatic magnetic calibration is working and stored to the eeprom persistently.
 
 ### Lib test
 - Create binaries of the lib analyzer and add them here: https://github.com/larus-breeze/sw_tools/tree/master/larus_data/_internal
