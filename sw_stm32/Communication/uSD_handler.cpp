@@ -729,7 +729,7 @@ restart:
     #endif
 		}
 	    }
-
+#if 0 // todo patch
 	  /* Check if EEPROM data changed recently */
 	  if (EE_GetLastChangeTickTime() != last_eeprom_write_tick)
 	    {
@@ -742,6 +742,7 @@ restart:
 		    break; /* break inner while loop and start again, which will start a new eeprom dump / logfile */
 		}
 	    }
+#endif
 	}
     }
 }
