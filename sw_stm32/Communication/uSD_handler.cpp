@@ -121,7 +121,7 @@ void write_crash_dump( void)
 {
   FRESULT fresult;
   FIL fp;
-  char buffer[50];
+  char buffer[80];
   char *next = buffer;
   UINT writtenBytes = 0;
 
