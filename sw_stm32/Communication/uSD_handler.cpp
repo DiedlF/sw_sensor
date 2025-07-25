@@ -121,7 +121,7 @@ void write_crash_dump( void)
 {
   FRESULT fresult;
   FIL fp;
-  char buffer[50];
+  char *buffer = (char *)mem_buffer; // use global buffer here
   char *next = buffer;
   UINT writtenBytes = 0;
 
@@ -620,9 +620,6 @@ restart:
 
   FIL the_file;
 
-  UINT writtenBytes = 0;
-  uint8_t *buf_ptr = mem_buffer;
-
   fresult = f_open (&the_file, (char *)"sensor.readings", FA_READ);
   dump_sensor_readings = (fresult == FR_OK);
   f_close( &the_file); // as this is just a dummy file
@@ -652,8 +649,13 @@ restart:
     }
 
   uint32_t last_eeprom_write_tick = EE_GetLastChangeTickTime();
+
+  // repeat writing logfiles for all successive flights
   while(true)
     {
+      UINT writtenBytes = 0;
+      uint8_t *buf_ptr = mem_buffer;
+
       // generate filename based on timestamp
       char * next = append_string( out_filename, "logger/");
       next = format_date_time( next);
@@ -680,9 +682,11 @@ restart:
 
       int32_t sync_counter=0;
 
-      while( true) // logger loop synchronized by communicator
+      // repeat: fill buffer with data chunks, write it to uSD and copy remaining data to start of buffer
+      // this logger loop is synchronized by the communicator object
+      while( true)
 	{
-	  notify_take (true); // wait for synchronization by from communicator OR crash detection
+	  notify_take (true); // wait for synchronization by from communicator OR by the crash detection mechanism
 
 	  if( crashfile && ! user_initiated_reset)
 	    write_crash_dump();
@@ -729,7 +733,6 @@ restart:
     #endif
 		}
 	    }
-
 	  /* Check if EEPROM data changed recently */
 	  if (EE_GetLastChangeTickTime() != last_eeprom_write_tick)
 	    {
