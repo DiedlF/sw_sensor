@@ -39,9 +39,9 @@
 class MtsspDriverSpi : public MtsspDriver
 {
 	public:
-		virtual void write(uint8_t opcode, uint8_t const* data, int dataLength);
-		virtual void read(uint8_t opcode, uint8_t* dest, int dataLength);
-		virtual void writeRaw(uint8_t const* data, int dataLength);
+		virtual void write(uint8_t opcode, uint8_t const* data, uint16_t dataLength);
+		virtual void read(uint8_t opcode, uint8_t* dest, uint16_t dataLength);
+		virtual void writeRaw(uint8_t const* data, uint16_t dataLength);
 
 		virtual XbusBusFormat busFormat() const { return XBF_Spi; }
 };

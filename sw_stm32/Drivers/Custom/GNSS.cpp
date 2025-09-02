@@ -32,7 +32,7 @@
 
 COMMON bool GNSS_new_data_ready;
 COMMON bool D_GNSS_new_data_ready;
-COMMON int64_t FAT_time; //!< DOS FAT time for file usage
+COMMON uint64_t FAT_time; //!< DOS FAT time for file usage
 COMMON Mutex GNSS_data_guard;
 
 #define SCALE_MM 0.001f

@@ -30,7 +30,7 @@ COMMON Queue <CANpacket> CAN_pipeline( 5);
 
 bool CAN_enqueue( const CANpacket &p, unsigned max_delay)
 {
-  CAN_pipeline.send( p, max_delay);
+  return CAN_pipeline.send( p, max_delay);
 }
 
 void CAN_task_runnable( void *)

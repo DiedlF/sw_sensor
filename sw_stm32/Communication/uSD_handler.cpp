@@ -56,7 +56,7 @@ FATFS fatfs;
 extern SD_HandleTypeDef hsd;
 extern DMA_HandleTypeDef hdma_sdio_rx;
 extern DMA_HandleTypeDef hdma_sdio_tx;
-extern int64_t FAT_time; //!< DOS FAT time for file usage
+extern uint64_t FAT_time; //!< DOS FAT time for file usage
 
 #define MEM_BUFSIZE 2048 // bytes
 #define RESERVE 512

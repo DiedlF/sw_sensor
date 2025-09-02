@@ -67,7 +67,7 @@ init_ports_and_reset_mti (void) // GPIO stuff
   EXTI15_10_Handle = xTraceSetISRProperties("EXTI15_10", 15);
 #endif
 
-  GPIO_InitTypeDef GPIO_InitStruct ={ 0 };
+  GPIO_InitTypeDef GPIO_InitStruct ={ 0, 0, 0, 0, 0};
 
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
