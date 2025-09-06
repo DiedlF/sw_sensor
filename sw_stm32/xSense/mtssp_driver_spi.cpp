@@ -52,7 +52,7 @@ extern SPI_HandleTypeDef hspi1;
 	\param[in] data Pointer to data to be written
 	\param[in] dataLength Number of data bytes to write
 */
-void MtsspDriverSpi::write(uint8_t opcode, uint8_t const* data, int dataLength)
+void MtsspDriverSpi::write(uint8_t opcode, uint8_t const* data, uint16_t dataLength)
 {
 	uint8_t buffer[4];
 	HAL_GPIO_WritePin(CHIP_SELECT_PORT, CHIP_SELECT_PIN, GPIO_PIN_RESET);
@@ -60,7 +60,7 @@ void MtsspDriverSpi::write(uint8_t opcode, uint8_t const* data, int dataLength)
 	buffer[1] = 0;
 	buffer[2] = 0;
 	buffer[3] = 0;
-	SPI_Transmit(&hspi1, buffer, sizeof(buffer), TIMEOUT_MS);
+	SPI_Transmit(&hspi1, buffer, (unsigned) sizeof(buffer), TIMEOUT_MS);
 	SPI_Transmit(&hspi1, (uint8_t*)data, dataLength, TIMEOUT_MS);
 	HAL_GPIO_WritePin(CHIP_SELECT_PORT, CHIP_SELECT_PIN, GPIO_PIN_SET);
 }
@@ -70,7 +70,7 @@ void MtsspDriverSpi::write(uint8_t opcode, uint8_t const* data, int dataLength)
 	\param[out] data Pointer to result buffer
 	\param[in] dataLength Number of data bytes to read
 */
-void MtsspDriverSpi::read(uint8_t opcode, uint8_t* dest, int dataLength)
+void MtsspDriverSpi::read(uint8_t opcode, uint8_t* dest, uint16_t dataLength)
 {
 	uint8_t buffer[4];
 	HAL_GPIO_WritePin(CHIP_SELECT_PORT, CHIP_SELECT_PIN, GPIO_PIN_RESET);
@@ -88,7 +88,7 @@ void MtsspDriverSpi::read(uint8_t opcode, uint8_t* dest, int dataLength)
 	\param[in] data Pointer to data to be written
 	\param[in] dataLength Number of data bytes to write
 */
-void MtsspDriverSpi::writeRaw(uint8_t const* data, int dataLength)
+void MtsspDriverSpi::writeRaw(uint8_t const* data, uint16_t dataLength)
 {
 	HAL_GPIO_WritePin(CHIP_SELECT_PORT, CHIP_SELECT_PIN, GPIO_PIN_RESET);
 	SPI_Transmit(&hspi1, (uint8_t*)data, dataLength, TIMEOUT_MS);

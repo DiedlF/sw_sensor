@@ -48,7 +48,7 @@ public:
 		\param[in] data Pointer to data to be written
 		\param[in] dataLength Number of data bytes to write
 	*/
-	virtual void write(uint8_t opcode, uint8_t const* data, int dataLength) = 0;
+	virtual void write(uint8_t opcode, uint8_t const* data, uint16_t dataLength) = 0;
 
 
 	/*!	\brief Perform a blocking read transfer
@@ -56,14 +56,14 @@ public:
 		\param[out] data Pointer to result buffer
 		\param[in] dataLength Number of data bytes to read
 	*/
-	virtual void read(uint8_t opcode, uint8_t* data, int dataLength) = 0;
+	virtual void read(uint8_t opcode, uint8_t* data, uint16_t dataLength) = 0;
 
 
 	/*!	\brief Perform a blocking write transfer
 		\param[in] data Pointer to data to be written
 		\param[in] dataLength Number of data bytes to write
 	*/
-	virtual void writeRaw(uint8_t const* data, int dataLength) = 0;
+	virtual void writeRaw(uint8_t const* data, uint16_t dataLength) = 0;
 
 
 	/*!	\brief Returns the low level bus format that must be used for transmitting messages over this hardware bus

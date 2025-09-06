@@ -36,9 +36,6 @@
 #include <string.h>
 #include "xbushelpers.h"
 
-static char g_textBuffer[256];
-
-
 /*!	\brief Helper function for reading a uint8_t
 */
 uint8_t readUint8(const uint8_t* data, int& index)
@@ -52,9 +49,9 @@ uint8_t readUint8(const uint8_t* data, int& index)
 */
 uint16_t readUint16(const uint8_t* data, int& index)
 {
-	uint16_t result = 0;
-	result |= data[index++] << 8;
-	result |= data[index++] << 0;
+  uint16_t result = 0;
+	result |= (uint16_t)(data[index++] << 8);
+	result |= (uint16_t)(data[index++] << 0);
 	return result;
 }
 

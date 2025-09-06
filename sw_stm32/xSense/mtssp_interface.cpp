@@ -109,7 +109,7 @@ void MtsspInterface::sendXbusMessage(XbusMessage const* xbusMessage)
 {
 	uint8_t buffer[128]={0};
 	size_t rawLength = XbusMessage_createRawMessage((uint8_t *)buffer, xbusMessage, m_driver->busFormat());
-	m_driver->writeRaw(buffer, rawLength);
+	m_driver->writeRaw(buffer, (uint16_t)rawLength);
 }
 
 
