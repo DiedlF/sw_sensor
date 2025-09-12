@@ -3,11 +3,19 @@
 #include "main.h"
 #include "FreeRTOS_wrapper.h"
 #include "embedded_math.h"
-#include "magnetic_matrix_calculator.h"
-#include "magnetic_induction_report.h"
+#include "soft_iron_compensator.h"
 
-COMMON compass_calibrator_3D_t compass_calibrator_3D;
+//#include "magnetic_matrix_calculator.h"
+//#include "magnetic_induction_report.h"
+//COMMON compass_calibrator_3D_t compass_calibrator_3D;
+
 COMMON Semaphore calculation_trigger;
+
+COMMON soft_iron_compensator_t soft_iron_compensator;
+void trigger_soft_iron_compensator_calculation(void)
+{
+  calculation_trigger.signal();
+}
 
 void trigger_compass_calibrator_3D_calculation(void)
 {
@@ -19,7 +27,7 @@ static void magnetic_calculator_runnable ( void *)
   while( true)
     {
       calculation_trigger.wait();
-      compass_calibrator_3D.calculate();
+//      compass_calibrator_3D.calculate();
     }
 }
 
