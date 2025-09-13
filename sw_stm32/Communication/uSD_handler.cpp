@@ -263,6 +263,30 @@ extern RecorderDataType myTraceBuffer;
     /* wake watchdog */;
 }
 
+bool write_soft_iron_parameters( void)
+{
+  FRESULT fresult;
+  FIL fp;
+  const computation_float_type * data = soft_iron_compensator.get_current_parameters();
+  if( data == 0)
+    return true;
+
+  char *buffer = (char *)mem_buffer; // use global buffer here
+  char *next = buffer;
+  UINT writtenBytes = 0;
+
+  next = format_date_time( buffer);
+  next = append_string (next, "_soft_mag.f120");
+
+  fresult = f_open (&fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
+  if (fresult != FR_OK)
+    return true;
+
+  f_write (&fp,(const char *)data, soft_iron_compensator.get_parameters_size(), &writtenBytes);
+  f_close( &fp);
+  return false;
+}
+
 bool write_EEPROM_dump( const char * filename)
 {
   FRESULT fresult;
@@ -731,6 +755,7 @@ restart:
     #if ACTIVATE_MAGNETIC_3D_MECHANIM
 		  write_magnetic_3D_data();
     #endif
+		  write_soft_iron_parameters();
 		}
 	    }
 	  /* Check if EEPROM data changed recently */
