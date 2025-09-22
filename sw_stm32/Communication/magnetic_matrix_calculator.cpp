@@ -11,7 +11,6 @@
 
 COMMON Semaphore calculation_trigger;
 
-COMMON soft_iron_compensator_t soft_iron_compensator;
 void trigger_soft_iron_compensator_calculation(void)
 {
   calculation_trigger.signal();
@@ -33,6 +32,7 @@ static void magnetic_calculator_runnable ( void *)
 
 #define STACKSIZE 1024
 static uint32_t __ALIGNED(STACKSIZE*4) stack_buffer[STACKSIZE];
+soft_iron_compensator_t __ALIGNED( SOFT_IRON_DATA_SIZE) soft_iron_compensator;
 
 static TaskParameters_t p =
 {
@@ -44,7 +44,7 @@ static TaskParameters_t p =
   stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { 0, 0, 0},
+      { (void *)&soft_iron_compensator, SOFT_IRON_DATA_SIZE, portMPU_REGION_READ_WRITE},
       { 0, 0, 0}
     }
 };

@@ -367,7 +367,7 @@ static ROM TaskParameters_t p =
   COMMUNICATOR_START_PRIORITY, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
-      { 0, 0, 0 },
+      { (void *)&soft_iron_compensator, SOFT_IRON_DATA_SIZE, portMPU_REGION_READ_WRITE},
       { 0, 0, 0 } } };
 
 COMMON RestrictedTask communicator_task (p);
