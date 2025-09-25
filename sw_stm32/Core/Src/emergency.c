@@ -152,6 +152,7 @@ MemManage_Handler(void)
 	  // 0x92 : Stack overflow (push)
 	  // 0x82 : Data access error
 	  // 0x81 : Instruction access error
+	  // 0x10 : MPU fault while stacking
 
   __asm volatile
   (

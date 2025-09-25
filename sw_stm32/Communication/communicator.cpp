@@ -358,7 +358,7 @@ void communicator_runnable (void*)
     }
 }
 
-#define STACKSIZE 1024 // in 32bit words
+#define STACKSIZE 2048
 static uint32_t __ALIGNED(STACKSIZE*sizeof(uint32_t)) stack_buffer[STACKSIZE];
 
 static ROM TaskParameters_t p =

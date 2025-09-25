@@ -20,7 +20,7 @@
 
 #include "ff.h"			/* Declarations of FatFs API */
 #include "diskio.h"		/* Declarations of device I/O functions */
-
+#include "common.h"
 
 /*--------------------------------------------------------------------------
 
@@ -530,15 +530,15 @@ typedef struct {
 #if _VOLUMES < 1 || _VOLUMES > 10
 #error Wrong _VOLUMES setting
 #endif
-static FATFS *FatFs[_VOLUMES];	/* Pointer to the file system objects (logical drives) */
-static WORD Fsid;				/* File system mount ID */
+COMMON FATFS *FatFs[_VOLUMES];	/* Pointer to the file system objects (logical drives) */
+COMMON WORD Fsid;				/* File system mount ID */
 
 #if _FS_RPATH != 0 && _VOLUMES >= 2
-static BYTE CurrVol;			/* Current drive */
+COMMON static BYTE CurrVol;			/* Current drive */
 #endif
 
 #if _FS_LOCK != 0
-static FILESEM Files[_FS_LOCK];	/* Open object lock semaphores */
+COMMON FILESEM Files[_FS_LOCK];	/* Open object lock semaphores */
 #endif
 
 #if _USE_LFN == 0		/* Non-LFN configuration */

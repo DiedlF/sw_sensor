@@ -28,6 +28,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "ff_gen_drv.h"
 #include "sd_diskio.h"
+#include "common.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -97,12 +98,12 @@ __ALIGN_BEGIN static uint8_t scratch[BLOCKSIZE] __ALIGN_END;
 #endif
 #endif
 /* Disk status */
-static volatile DSTATUS Stat = STA_NOINIT;
+COMMON volatile DSTATUS Stat = STA_NOINIT;
 
 #if (osCMSIS <= 0x20000U)
-static osMessageQId SDQueueID = NULL;
+COMMON osMessageQId SDQueueID = NULL;
 #else
-static osMessageQueueId_t SDQueueID = NULL;
+COMMON osMessageQueueId_t SDQueueID = NULL;
 #endif
 /* Private function prototypes -----------------------------------------------*/
 static DSTATUS SD_CheckStatus(BYTE lun);

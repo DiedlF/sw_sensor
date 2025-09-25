@@ -52,7 +52,7 @@ COMMON unsigned crashline;
 COMMON bool dump_sensor_readings;
 COMMON bool landing_detected;
 
-FATFS fatfs;
+COMMON FATFS fatfs;
 extern SD_HandleTypeDef hsd;
 extern DMA_HandleTypeDef hdma_sdio_rx;
 extern DMA_HandleTypeDef hdma_sdio_tx;
@@ -60,7 +60,7 @@ extern uint64_t FAT_time; //!< DOS FAT time for file usage
 
 #define MEM_BUFSIZE 2048 // bytes
 #define RESERVE 512
-static uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE + RESERVE];
+COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE + RESERVE];
 
 //!< format date and time from sat fix data
 char * format_date_time( char * target)
@@ -125,6 +125,8 @@ void write_crash_dump( void)
   char *next = buffer;
   UINT writtenBytes = 0;
 
+  acquire_privileges(); // ... need to access trace data etc
+
 #if configUSE_TRACE_FACILITY // ************************************************
 #include "trcConfig.h"
   vTraceStop(); // don't trace ourselves ...
@@ -135,7 +137,7 @@ void write_crash_dump( void)
 
   fresult = f_open (&fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
   if (fresult != FR_OK)
-    return;
+    goto emergency_exit;
 
   next=append_string( buffer, (char*)"Firmware: ");
   next=append_string( next, GIT_TAG_INFO);
@@ -207,40 +209,58 @@ void write_crash_dump( void)
   next = utox( next, register_dump.Hard_Fault_Status);
   newline( next);
 
-  next=append_string( buffer, (char*)"FPU dump:");
-  newline( next);
-
   f_write (&fp, buffer, next-buffer, &writtenBytes);
 
   for( unsigned i=0; i<32; ++i)
     {
-      next = utox( buffer, FPU_register_dump[i]);
-      newline( next);
-      f_write (&fp, buffer, next-buffer, &writtenBytes);
-    }
 
-  f_close(&fp);
+    // only if the dump is populated
+      if( FPU_register_dump[i] != 0x00)
+	{
+	  next=append_string( buffer, (char*)"FPU dump:");
+	  newline( next);
+
+	  for( unsigned i=0; i<32; ++i)
+	    {
+	      next = utox( next, FPU_register_dump[i]);
+	      newline( next);
+	    }
+	  f_write (&fp, buffer, next-buffer, &writtenBytes);
+	  break;
+	}
+    }
+  fresult = f_close(&fp);
+  if (fresult != FR_OK)
+    goto emergency_exit;
+
+  delay( 100);
 
 #if configUSE_TRACE_FACILITY // ************************************************
 
 extern RecorderDataType myTraceBuffer;
+
   next = format_date_time( buffer);
   next = append_string (next, ".bin");
   fresult = f_open (&fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
   if (fresult != FR_OK)
-    return;
+    goto emergency_exit;
 
-  for( uint8_t *ptr=(uint8_t *)&myTraceBuffer; ptr < (uint8_t *)&myTraceBuffer + sizeof(RecorderDataType); ptr += 2048)
+  for( uint8_t *ptr=(uint8_t *)&myTraceBuffer; ptr < (uint8_t *)&myTraceBuffer + sizeof(RecorderDataType); ptr += MEM_BUFSIZE)
     {
-      UINT size = (uint8_t *)&myTraceBuffer + sizeof(RecorderDataType) - ptr;
-      if( size > MEM_BUFSIZE)
-	size = MEM_BUFSIZE;
-      memcpy( mem_buffer, ptr, size);
-      fresult = f_write (&fp, (const void *)mem_buffer, size, &writtenBytes);
-      if( writtenBytes < size)
+      unsigned blocksize = (uint8_t *)&myTraceBuffer + sizeof(RecorderDataType) - ptr;
+      if( blocksize > MEM_BUFSIZE)
+	blocksize = MEM_BUFSIZE;
+      // data needs to be copied out of CCM RAM
+      memcpy( mem_buffer, ptr, blocksize);
+      fresult = f_write (&fp, mem_buffer, blocksize, &writtenBytes);
+      if( writtenBytes < blocksize)
 	break;
     }
-  f_close(&fp);
+  fresult = f_close(&fp);
+  if (fresult != FR_OK)
+    goto emergency_exit;
+
+  delay( 100);
 
 #endif // ************************************************************************
 
@@ -251,13 +271,17 @@ extern RecorderDataType myTraceBuffer;
   next = format_2_digits( next, sizeof( output_data_t) / sizeof(float));
 
   fresult = f_open ( &fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
-  if (fresult == FR_OK)
-    {
-      fresult = f_write (&fp, (uint8_t*) &output_data, sizeof( output_data_t), &writtenBytes);
-      f_close( &fp);
-    }
+  if (fresult != FR_OK)
+    goto emergency_exit;
 
-  delay(1000); // wait until data has been saved and file is closed (DMA...)
+  fresult = f_write (&fp, (uint8_t*) &output_data, sizeof( output_data_t), &writtenBytes);
+  f_close( &fp);
+
+  f_mount ( 0, "", 0); // unmount uSD
+
+emergency_exit:
+
+  delay( 100); // just to be sure ...
 
   while( true)
     /* wake watchdog */;
@@ -608,6 +632,8 @@ restart:
   if( hresult != HAL_OK)
     goto restart;
 
+  drop_privileges(); // go protected
+
   FRESULT fresult;
   fresult = f_mount (&fatfs, "", 0);
 
@@ -700,7 +726,9 @@ restart:
       char * next = append_string( out_filename, "logger/");
       next = format_date_time( next);
 
+      acquire_privileges();
       write_EEPROM_dump( out_filename); // now we have date+time, start logging
+      drop_privileges();
 
       *next++ = '.';
       *next++  = 'f';
@@ -790,7 +818,7 @@ restart:
     }
 }
 
-#define STACKSIZE (1024*2)
+#define STACKSIZE 2048
 static uint32_t __ALIGNED(STACKSIZE*4) stack_buffer[STACKSIZE];
 
 static TaskParameters_t p =

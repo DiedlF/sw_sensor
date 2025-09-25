@@ -20,10 +20,7 @@
 #include "data_structures.h"
 extern GNSS_type GNSS;
 
-uint8_t retSD;    /* Return value for SD */
-char SDPath[4];   /* SD logical drive path */
-FATFS SDFatFS;    /* File system object for SD logical drive */
-FIL SDFile;       /* File object for SD */
+COMMON FATFS SDFatFS;    /* File system object for SD logical drive */
 
 /* USER CODE BEGIN Variables */
 
@@ -32,6 +29,8 @@ FIL SDFile;       /* File object for SD */
 void MX_FATFS_Init(void)
 {
   /*## FatFS: Link the SD driver ###########################*/
+  uint8_t retSD;    /* Return value for SD */
+  char SDPath[4];   /* SD logical drive path */
   retSD = FATFS_LinkDriver(&SD_Driver, SDPath);
 
   /* USER CODE BEGIN Init */
