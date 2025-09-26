@@ -32,7 +32,7 @@ void MX_FATFS_Init(void)
   uint8_t retSD;    /* Return value for SD */
   char SDPath[4];   /* SD logical drive path */
   retSD = FATFS_LinkDriver(&SD_Driver, SDPath);
-
+  (void)retSD;
   /* USER CODE BEGIN Init */
   /* additional user code for init */
   /* USER CODE END Init */

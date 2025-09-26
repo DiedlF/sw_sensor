@@ -36,7 +36,7 @@ COMMON uint32_t FPU_register_dump[32];
 /**
  * @brief  This function handles exceptions triggered by bad parameters to lib functions
  */
-void assert_failed(uint8_t* file, uint32_t line)
+void assert_failed( char * file, uint32_t line)
 {
   emergency_write_crashdump( file, line);
   while(1)
@@ -278,7 +278,8 @@ void vApplicationReturnFromTaskProcedureHook( void)
 
 void abort( void)
 {
-  ASSERT( 0);
+  while( 1)
+    ASSERT( 0);
 }
 
 #define SHORTCUT( fkt_name) \
