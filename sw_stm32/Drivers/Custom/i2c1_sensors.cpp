@@ -75,6 +75,6 @@ restart:
     }
 }
 
-RestrictedTask pitot_reading (runnable, "PITOT", 512, 0,
+RestrictedTask pitot_reading (runnable, "PITOT", 256, 0,
 			      PITOT_PRIORITY + portPRIVILEGE_BIT);
 
