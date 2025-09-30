@@ -26,6 +26,7 @@ static void magnetic_calculator_runnable ( void *)
   while( true)
     {
       calculation_trigger.wait();
+      soft_iron_compensator.calculate();
 //      compass_calibrator_3D.calculate();
     }
 }
