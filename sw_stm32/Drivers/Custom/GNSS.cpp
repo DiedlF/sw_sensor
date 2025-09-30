@@ -165,6 +165,7 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 	    coordinates.velocity[DOWN] 		= 0.0f;
 	    coordinates.acceleration[NORTH] 	= 0.0f;
 	    coordinates.acceleration[EAST] 	= 0.0f;
+	    coordinates.position[DOWN] = 0.0f; // avoid reporting wrong GNSS altitude
 
 	    return GNSS_NO_FIX;
 	  }
