@@ -447,7 +447,8 @@ bool write_EEPROM_dump( const char * filename)
 }
 
 //!< find software image file and load it if applicable
-bool read_software_update(void)
+bool
+read_software_update (void)
 {
   FIL the_file;
   FILINFO fno;
@@ -458,69 +459,77 @@ bool read_software_update(void)
   uint32_t highest_sw_version_found = 0;
   char highest_sw_version_fname[_MAX_LFN + 1];
 
-
   uint32_t flash_address = 0x60000;
   unsigned status;
   bool last_block_read = false;
 
   // find all *.bin files which could be software update images
-  fresult = f_findfirst(&dj, &fno, "", "????*.bin");
+  fresult = f_findfirst (&dj, &fno, "", "????*.bin");
   if (fresult != FR_OK)
     return false;
 
-  while(fresult == FR_OK){
-    // try to open the next image file
-    fresult = f_open (&the_file, (char *)&fno.fname[0], FA_READ);
-    if( fresult != FR_OK)
-      return false;
+  while (fresult == FR_OK)
+    {
+      // try to open the next image file
+      fresult = f_open (&the_file, (char*) &fno.fname[0], FA_READ);
+      if (fresult != FR_OK)
+	return false;
 
-    // read first block to check hardware and firmware version
-    fresult = f_read(&the_file, mem_buffer, MEM_BUFSIZE, &bytes_read);
-    if(fresult != FR_OK)
-      return false;
-    f_close(&the_file);
+      // read first block to check hardware and firmware version
+      fresult = f_read (&the_file, mem_buffer, MEM_BUFSIZE, &bytes_read);
+      if (fresult != FR_OK)
+	return false;
+      f_close (&the_file);
 
-    uint32_t file_hw_version = mem_buffer[23] | (mem_buffer[22] << 8) | (mem_buffer[21] << 16) | (mem_buffer[20] << 24);
-    uint64_t file_magic_number = 0;
-    for (int i =7; i>=0; i--){
-	file_magic_number <<=8;
-	file_magic_number |= (uint64_t) mem_buffer[i];
-    }
+      uint32_t file_hw_version = mem_buffer[23] | (mem_buffer[22] << 8)
+	  | (mem_buffer[21] << 16) | (mem_buffer[20] << 24);
+      uint64_t file_magic_number = 0;
+      for (int i = 7; i >= 0; i--)
+	{
+	  file_magic_number <<= 8;
+	  file_magic_number |= (uint64_t) mem_buffer[i];
+	}
 
-    if ((file_hw_version == 0x01010100) && (file_magic_number == 0x1c8073ab20853579)){
-	// The files hw version is for the larus sensor and the larus magic number is correct.
+      if ((file_hw_version == 0x01010100)
+	  && (file_magic_number == 0x1c8073ab20853579))
+	{
+	  // The files hw version is for the larus sensor and the larus magic number is correct.
 
-	uint32_t file_sw_version = mem_buffer[27] | (mem_buffer[26] << 8) | (mem_buffer[25] << 16) | (mem_buffer[24] << 24);
-	if (file_sw_version > highest_sw_version_found){
+	  uint32_t file_sw_version = mem_buffer[27] | (mem_buffer[26] << 8)
+	      | (mem_buffer[25] << 16) | (mem_buffer[24] << 24);
+	  if (file_sw_version > highest_sw_version_found)
+	    {
 
-	    // Search for the highest version and copy filename
-	    highest_sw_version_found = file_sw_version;
-	    for (int i = 0; i < _MAX_LFN; i++){
-		highest_sw_version_fname[i] = fno.fname[i];
+	      // Search for the highest version and copy filename
+	      highest_sw_version_found = file_sw_version;
+	      for (int i = 0; i < _MAX_LFN; i++)
+		{
+		  highest_sw_version_fname[i] = fno.fname[i];
+		}
 	    }
 	}
+
+      fresult = f_findnext (&dj, &fno);
+      if ((fresult != FR_OK) || (fno.fname[0] == 0))
+	break; // now more files found, break loop-
     }
 
-    fresult = f_findnext(&dj, &fno);
-    if ((fresult != FR_OK) || (fno.fname[0] == 0)){
-       break; // now more files found, break loop-
-    }
-  }
-
-  if (highest_sw_version_found <= GIT_TAG_DEC){
+#if DISALLOW_DOWNGRADE
+  if (highest_sw_version_found <= GIT_TAG_DEC)
       return false; //The firmware image with the highest version is it nothing new. Finishing here.
-  }
+
+#endif
 
   // try to open new software image file
   fresult = f_open (&the_file, highest_sw_version_fname, FA_READ);
-    if( fresult != FR_OK)
-          return false;
+  if (fresult != FR_OK)
+    return false;
 
   // read first block
-  fresult = f_read(&the_file, mem_buffer, MEM_BUFSIZE, &bytes_read);
-  if( (fresult != FR_OK) || (bytes_read  < MEM_BUFSIZE))
+  fresult = f_read (&the_file, mem_buffer, MEM_BUFSIZE, &bytes_read);
+  if ((fresult != FR_OK) || (bytes_read < MEM_BUFSIZE))
     {
-      f_close(&the_file);
+      f_close (&the_file);
       return false;
     }
 
@@ -529,18 +538,19 @@ bool read_software_update(void)
   uint32_t *flash_ptr;
   bool image_is_equal = true;
 
-  for( mem_ptr=(uint32_t *)mem_buffer, flash_ptr=(uint32_t *)flash_address; mem_ptr < (uint32_t *)(mem_buffer + MEM_BUFSIZE); ++mem_ptr, ++flash_ptr)
-    if(*mem_ptr != *flash_ptr)
+  for (mem_ptr = (uint32_t*) mem_buffer, flash_ptr = (uint32_t*) flash_address;
+      mem_ptr < (uint32_t*) (mem_buffer + MEM_BUFSIZE); ++mem_ptr, ++flash_ptr)
+    if (*mem_ptr != *flash_ptr)
       {
 	image_is_equal = false;
 	break;
       }
 
-  if( image_is_equal)
+  if (image_is_equal)
     return false;
 
-  status = HAL_FLASH_Unlock();
-  if(status != HAL_OK)
+  status = HAL_FLASH_Unlock ();
+  if (status != HAL_OK)
     return false;
 
   // for an unknown reason error flags need to be reset
@@ -570,39 +580,41 @@ bool read_software_update(void)
   if ((status != HAL_OK) || (SectorError != 0xffffffff))
     return false;
 
-  for(;;)
+  for (;;)
     {
-      for( uint32_t * data_pointer = (uint32_t *)mem_buffer; data_pointer < (uint32_t *)( mem_buffer + bytes_read); ++data_pointer)
-      {
-	      status = HAL_FLASH_Program( TYPEPROGRAM_WORD, flash_address, (uint64_t) *data_pointer);
-	      if(status != HAL_OK)
-		  break;
-	      flash_address += sizeof(uint32_t);
-      }
-
-      if( last_block_read)
+      for (uint32_t *data_pointer = (uint32_t*) mem_buffer;
+	  data_pointer < (uint32_t*) (mem_buffer + bytes_read); ++data_pointer)
 	{
-	  HAL_FLASH_Lock();
-	  delay(100); // wait until uSD operations are finished
-	  fresult = f_mount ( 0, "", 0); // unmount file system
-	  delay(100); // wait until uSD operations are finished
+	  status = HAL_FLASH_Program ( TYPEPROGRAM_WORD, flash_address,
+				      (uint64_t) *data_pointer);
+	  if (status != HAL_OK)
+	    break;
+	  flash_address += sizeof(uint32_t);
+	}
+
+      if (last_block_read)
+	{
+	  HAL_FLASH_Lock ();
+	  delay (100); // wait until uSD operations are finished
+	  fresult = f_mount (0, "", 0); // unmount file system
+	  delay (100); // wait until uSD operations are finished
 	  return true;
 	}
 
-      fresult = f_read(&the_file, mem_buffer, MEM_BUFSIZE, &bytes_read);
-      if( fresult != FR_OK)
+      fresult = f_read (&the_file, mem_buffer, MEM_BUFSIZE, &bytes_read);
+      if (fresult != FR_OK)
 	{
-	  f_close(&the_file);
+	  f_close (&the_file);
 	  break;
 	}
 
-      if( bytes_read < MEM_BUFSIZE)
+      if (bytes_read < MEM_BUFSIZE)
 	{
-	  f_close(&the_file);
+	  f_close (&the_file);
 	  last_block_read = true;
 	}
     }
-  HAL_FLASH_Lock();
+  HAL_FLASH_Lock ();
   return false;
 }
 
