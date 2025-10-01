@@ -632,8 +632,6 @@ restart:
   if( hresult != HAL_OK)
     goto restart;
 
-  drop_privileges(); // go protected
-
   FRESULT fresult;
   fresult = f_mount (&fatfs, "", 0);
 
@@ -668,6 +666,8 @@ restart:
       pFunction copy_function_address = *(pFunction *)0x06001c;
       copy_function_address();
       }
+
+  drop_privileges(); // go protected
 
   watchdog_activator.signal(); // now start the watchdog
 
