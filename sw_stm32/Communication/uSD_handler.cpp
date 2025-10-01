@@ -692,7 +692,7 @@ restart:
   read_magnetic_3D_data(); // read 3D data if existent
 #endif
 
-  read_soft_iron_parameters(); // if any ...
+  read_soft_iron_parameters(); // if they exist
 
   FILINFO filinfo;
   fresult = f_stat("logger", &filinfo);
@@ -796,22 +796,28 @@ restart:
 	      if( landing_detected)
 		{
 		  landing_detected = false;
-    #if ACTIVATE_MAGNETIC_3D_MECHANIM
+
+		  f_close(&the_file);
+
+		  delay(100); // just to be sure everything is written
+
+#if ACTIVATE_MAGNETIC_3D_MECHANIM
 		  write_magnetic_3D_data();
-    #endif
+#endif
 		  write_soft_iron_parameters();
-		}
-	    }
-	  /* Check if EEPROM data changed recently */
-	  if (EE_GetLastChangeTickTime() != last_eeprom_write_tick)
-	    {
-	      /* Wait at least three seconds after a data change has been observed before creating a new dump file.
-	       * This prevents that an identical filename is used again. */
-	      if (xTaskGetTickCount() > (last_eeprom_write_tick + (3 * configTICK_RATE_HZ)))
-		{
-		    last_eeprom_write_tick = EE_GetLastChangeTickTime();
-		    f_close(&the_file);
-		    break; /* break inner while loop and start again, which will start a new eeprom dump / logfile */
+
+		  /* Check if EEPROM data changed recently */
+		  if (EE_GetLastChangeTickTime() != last_eeprom_write_tick)
+		    {
+		      /* Wait at least three seconds after a data change has been observed before creating a new dump file.
+		       * This prevents that an identical filename is used again. */
+		      if (xTaskGetTickCount() > (last_eeprom_write_tick + (3 * configTICK_RATE_HZ)))
+			{
+			    last_eeprom_write_tick = EE_GetLastChangeTickTime();
+			}
+		    }
+
+		  break; /* break inner while loop and start again, which will start a new eeprom dump / logfile */
 		}
 	    }
 	}

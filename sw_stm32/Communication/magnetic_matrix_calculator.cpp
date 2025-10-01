@@ -10,6 +10,7 @@
 //COMMON compass_calibrator_3D_t compass_calibrator_3D;
 
 COMMON Semaphore calculation_trigger;
+extern bool landing_detected;
 
 void trigger_soft_iron_compensator_calculation(void)
 {
@@ -27,18 +28,17 @@ static void magnetic_calculator_runnable ( void *)
     {
       calculation_trigger.wait();
       soft_iron_compensator.calculate();
-//      compass_calibrator_3D.calculate();
     }
 }
 
-#define STACKSIZE 1024
-static uint32_t __ALIGNED(STACKSIZE*4) stack_buffer[STACKSIZE];
+#define STACKSIZE 256
+static uint32_t __ALIGNED(STACKSIZE*sizeof(uint32_t)) stack_buffer[STACKSIZE];
 soft_iron_compensator_t __ALIGNED( SOFT_IRON_DATA_SIZE) soft_iron_compensator;
 
 static TaskParameters_t p =
 {
   magnetic_calculator_runnable,
-  "mag_calc",
+  "MAG_CALC",
   STACKSIZE,
   0,
   MAG_CALCULATOR_PRIORITY,
