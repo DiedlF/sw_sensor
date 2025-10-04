@@ -10,7 +10,6 @@
 //COMMON compass_calibrator_3D_t compass_calibrator_3D;
 
 COMMON Semaphore calculation_trigger;
-extern bool landing_detected;
 
 void trigger_soft_iron_compensator_calculation(void)
 {
