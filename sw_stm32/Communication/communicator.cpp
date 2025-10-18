@@ -302,7 +302,7 @@ void communicator_runnable (void*)
       --synchronizer_10Hz;
       if( synchronizer_10Hz == 0)
 	{
-	  landing_detected = organizer.update_every_100ms (output_data);
+	  landing_detected |= organizer.update_every_100ms (output_data);
 	  synchronizer_10Hz = 10;
 	}
 
@@ -358,7 +358,7 @@ void communicator_runnable (void*)
     }
 }
 
-#define STACKSIZE 1024 // in 32bit words
+#define STACKSIZE 2048
 static uint32_t __ALIGNED(STACKSIZE*sizeof(uint32_t)) stack_buffer[STACKSIZE];
 
 static ROM TaskParameters_t p =
@@ -367,7 +367,7 @@ static ROM TaskParameters_t p =
   COMMUNICATOR_START_PRIORITY, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
-      { 0, 0, 0 },
+      { (void *)&soft_iron_compensator, SOFT_IRON_DATA_SIZE, portMPU_REGION_READ_WRITE},
       { 0, 0, 0 } } };
 
 COMMON RestrictedTask communicator_task (p);

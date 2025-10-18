@@ -223,6 +223,7 @@ bool Bluetooth_Init(void)
     }
 
   delay(500); /*Delay after last AT command.*/
+  (void)response;
   return true;
 }
 

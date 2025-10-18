@@ -154,8 +154,8 @@ void NMEA_listener_task_runnable( void *)
 	}
     }
 }
-Task NMEA_listener_task (NMEA_listener_task_runnable, "NMEA_IN");
 
+RestrictedTask NMEA_listener_task (NMEA_listener_task_runnable, "NMEA_IN", 256, 0, NMEA_LISTEN_PRIORITY);
 
 
 
