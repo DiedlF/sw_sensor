@@ -155,10 +155,8 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 	coordinates.speed_motion    = pvt.gSpeed * SCALE_MM;
 	coordinates.heading_motion  = pvt.gTrack * 1e-5f;
 
-	GNSS_new_data_ready = true;
-
 	fix_type = (FIX_TYPE) (pvt.fix_type);
-	if( (pvt.fix_flags & 1) == 0)	// todo someday modify me for aerobatics support
+	if( (pvt.fix_flags & 1) == 0)
 	  {
 	    coordinates.velocity[NORTH] 	= 0.0f;
 	    coordinates.velocity[EAST] 		= 0.0f;
@@ -167,10 +165,14 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 	    coordinates.acceleration[EAST] 	= 0.0f;
 	    coordinates.position[DOWN] = 0.0f; // avoid reporting wrong GNSS altitude
 
+	    GNSS_new_data_ready = true;
 	    return GNSS_NO_FIX;
 	  }
 	else
+	  {
+	    GNSS_new_data_ready = true;
 	    return GNSS_HAVE_FIX;
+	  }
 }
 
 GNSS_Result GNSS_type::update_delta(const uint8_t * data)
