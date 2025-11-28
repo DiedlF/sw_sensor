@@ -65,13 +65,13 @@ COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE + RESERVE];
 //!< format date and time from sat fix data
 char * format_date_time( char * target)
 {
-  target = format_2_digits( target, output_data.c.year);
-  target = format_2_digits( target, output_data.c.month);
-  target = format_2_digits( target, output_data.c.day);
+  format_2_digits( target, output_data.c.year);
+  format_2_digits( target, output_data.c.month);
+  format_2_digits( target, output_data.c.day);
   *target ++ = '_';
-  target = format_2_digits( target, output_data.c.hour);
-  target = format_2_digits( target, output_data.c.minute);
-  target = format_2_digits( target, output_data.c.second);
+  format_2_digits( target, output_data.c.hour);
+  format_2_digits( target, output_data.c.minute);
+  format_2_digits( target, output_data.c.second);
   *target=0;
   return target;
 }
@@ -279,7 +279,7 @@ extern RecorderDataType myTraceBuffer;
   next = format_date_time( buffer);
   *next++ = '.';
   *next++  = 'f';
-  next = format_2_digits( next, sizeof( output_data_t) / sizeof(float));
+  format_2_digits( next, sizeof( output_data_t) / sizeof(float));
 
   fresult = f_open ( &fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
   if (fresult != FR_OK)
@@ -760,7 +760,7 @@ restart:
 
       *next++ = '.';
       *next++  = 'f';
-      next = format_2_digits( next, sizeof(observations_type) / sizeof(float));
+      format_2_digits( next, sizeof(observations_type) / sizeof(float));
 
       fresult = f_open (&the_file, out_filename, FA_CREATE_ALWAYS | FA_WRITE);
       if (fresult != FR_OK)

@@ -140,17 +140,17 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
   newline( s);
 
   append_string( s, "Sats: ");
-  s = format_2_digits( s, (float32_t)(output_data.c.SATS_number));
+  format_integer( s, output_data.c.SATS_number);
 
   append_string( s, " Speed-Accuracy = ");
   to_ascii_n_decimals( output_data.c.speed_acc, 2, s);
 
   append_string( s, "m/s, GNSS time: ");
-  s = format_2_digits( s, output_data.c.hour);
+  format_2_digits( s, output_data.c.hour);
   *s ++ = ':';
-  s = format_2_digits( s, output_data.c.minute);
+  format_2_digits( s, output_data.c.minute);
   *s ++ = ':';
-  s = format_2_digits( s, output_data.c.second);
+  format_2_digits( s, output_data.c.second);
   newline( s);
 
   append_string( s, "Induction NED: ");
