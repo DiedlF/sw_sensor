@@ -124,7 +124,7 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
     }
 
   append_string( s, "Pabs / hPa ");
-  to_ascii_n_decimals( stat.mean, 2, s);
+  to_ascii_n_decimals( stat.mean * 0.01f, 2, s);
   newline( s);
 
   append_string( s, "Pabs noise RMS / Pa ");
