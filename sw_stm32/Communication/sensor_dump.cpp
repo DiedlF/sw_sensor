@@ -33,7 +33,7 @@ COMMON pt2 <float, float> heading_decimator( 0.01);
 COMMON pt2 <float, float> inclination_decimator( 0.01);
 COMMON pt2 <float, float> voltage_decimator( 0.01);
 
-#define RAD_2_DEGREES_10 572.96f
+#define RAD_2_DEGREES 57.296f
 
 struct statistics
 {
@@ -73,47 +73,47 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
 {
   char *s = NMEA_buf.string;
 
-  s=append_string( s, "Sensor ID: ");
-  s=utox( s, UNIQUE_ID[0]);
-  s=append_string( s, (char*)" Firmware: ");
-  s=append_string( s, GIT_TAG_INFO);
+  append_string( s, "Sensor ID: ");
+  utox( s, UNIQUE_ID[0]);
+  append_string( s, (char*)" Firmware: ");
+  append_string( s, GIT_TAG_INFO);
   newline( s);
 
   float squaresum;
 
-  s=append_string( s, "Acc m/s^2 ");
+  append_string( s, "Acc m/s^2 ");
   squaresum=0.0f;
   for( unsigned i=0; i<3; ++i)
     {
       squaresum += SQR( output_data.m.acc[i]);
-      s = to_ascii_2_decimals( 100.0f * output_data.m.acc[i] , s);
+      to_ascii_n_decimals( output_data.m.acc[i], 2, s);
       *s++ = ' ';
     }
-  s = to_ascii_2_decimals( 100.0f * SQRT( squaresum) , s);
-  s=append_string( s, "\r\n");
+  to_ascii_n_decimals( SQRT( squaresum), 2, s);
+  append_string( s, "\r\n");
 
-  s=append_string( s, "Gyro deg/s  ");
+  append_string( s, "Gyro deg/s  ");
   squaresum=0.0f;
   for( unsigned i=0; i<3; ++i)
     {
-      s = to_ascii_1_decimal( RAD_2_DEGREES_10 * output_data.m.gyro[i] , s);
+      to_ascii_n_decimals( RAD_2_DEGREES * output_data.m.gyro[i], 1, s);
       *s++ = ' ';
     }
   newline( s);
 
-  s=append_string( s, "Magn.Ind.Sens ");
+  append_string( s, "Magn.Ind.Sens ");
   squaresum=0.0f;
   for( unsigned i=0; i<3; ++i)
     {
       squaresum += SQR( output_data.m.mag[i]);
-      s = to_ascii_2_decimals( 100.0f * output_data.m.mag[i] , s);
+      to_ascii_n_decimals( output_data.m.mag[i], 2, s);
       *s++ = ' ';
     }
-  s = to_ascii_2_decimals( 100.0f * SQRT( squaresum) , s);
+  to_ascii_n_decimals( SQRT( squaresum), 2, s);
   newline( s);
 
-  s=append_string( s, "P_pitot / Pa ");
-  s = to_ascii_2_decimals( 100.0f * output_data.m.pitot_pressure , s);
+  append_string( s, "P_pitot / Pa ");
+  to_ascii_n_decimals( output_data.m.pitot_pressure, 2, s);
   newline( s);
 
   statistics present_stat = get_sensor_data();
@@ -123,29 +123,29 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
       reset_sensor_data();
     }
 
-  s=append_string( s, "Pabs / hPa ");
-  s = to_ascii_2_decimals( stat.mean , s);
+  append_string( s, "Pabs / hPa ");
+  to_ascii_n_decimals( stat.mean, 2, s);
   newline( s);
 
-  s=append_string( s, "Pabs noise RMS / Pa ");
-  s = to_ascii_2_decimals( stat.rms * 100.0f , s);
+  append_string( s, "Pabs noise RMS / Pa ");
+  to_ascii_n_decimals( stat.rms, 2, s);
   newline( s);
 
-  s=append_string( s, "Sensor Temp = ");
-  s = to_ascii_2_decimals( 100.0f * output_data.m.static_sensor_temperature , s);
+  append_string( s, "Sensor Temp = ");
+  to_ascii_n_decimals( output_data.m.static_sensor_temperature, 2, s);
   newline( s);
 
-  s=append_string( s, "U_batt = ");
-  s = to_ascii_2_decimals( 100.0f * voltage_decimator.get_output() , s);
+  append_string( s, "U_batt = ");
+  to_ascii_n_decimals( voltage_decimator.get_output(), 2, s);
   newline( s);
 
-  s=append_string( s, "Sats: ");
+  append_string( s, "Sats: ");
   s = format_2_digits( s, (float32_t)(output_data.c.SATS_number));
 
-  s=append_string( s, " Speed-Accuracy = ");
-  s = to_ascii_2_decimals( 100.0f * (float32_t)(output_data.c.speed_acc), s);
+  append_string( s, " Speed-Accuracy = ");
+  to_ascii_n_decimals( output_data.c.speed_acc, 2, s);
 
-  s=append_string( s, "m/s, GNSS time: ");
+  append_string( s, "m/s, GNSS time: ");
   s = format_2_digits( s, output_data.c.hour);
   *s ++ = ':';
   s = format_2_digits( s, output_data.c.minute);
@@ -153,43 +153,43 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
   s = format_2_digits( s, output_data.c.second);
   newline( s);
 
-  s=append_string( s, "Induction NED: ");
+  append_string( s, "Induction NED: ");
   for( unsigned i=0; i<3; ++i)
     {
-      s = to_ascii_2_decimals( 100.0f * output_data.nav_induction_gnss[i], s);
+      to_ascii_n_decimals( output_data.nav_induction_gnss[i], 2, s);
       *s++=' ';
     }
 
-  s=append_string( s, " Strength = ");
-  s = to_ascii_2_decimals( 100.0f * output_data.nav_induction_gnss.abs(), s);
+  append_string( s, " Strength = ");
+  to_ascii_n_decimals( output_data.nav_induction_gnss.abs(), 2, s);
   newline( s);
 
   float heading = heading_decimator.get_output();
   if( heading < 0.0f)
     heading += 2.0f * M_PI_F;
-  s=append_string( s, "AHRS-Heading = ");
-  s = to_ascii_1_decimal( RAD_2_DEGREES_10 * heading, s);
+  append_string( s, "AHRS-Heading = ");
+  to_ascii_n_decimals( RAD_2_DEGREES * heading, 1, s);
 
-  s=append_string( s, " Inclination = ");
-  s = to_ascii_1_decimal( RAD_2_DEGREES_10 * inclination_decimator.get_output(), s);
+  append_string( s, " Inclination = ");
+  to_ascii_n_decimals( RAD_2_DEGREES * inclination_decimator.get_output(), 1, s);
 
-  s=append_string( s, " MagAnomaly = ");
-  s = to_ascii_2_decimals( output_data.magnetic_disturbance * 10000.0f, s);
+  append_string( s, " MagAnomaly = ");
+  to_ascii_n_decimals( output_data.magnetic_disturbance * 100.0f, 2, s);
   *s++ = '%';
   newline( s);
 
   if( output_data.c.sat_fix_type == (SAT_FIX | SAT_HEADING))
     {
       float baselength = output_data.c.relPosNED.abs();
-      s=append_string( s, "D-GNSS: BaseLength: ");
-      s = to_ascii_2_decimals( baselength * 100.0f, s);
-      s=append_string( s, "m  SlaveDown = ");
-      s = to_ascii_2_decimals( output_data.c.relPosNED[DOWN] * 100.0f, s);
-      s=append_string( s, "m D-GNSS-Heading= ");
-      s = to_ascii_1_decimal( RAD_2_DEGREES_10 * output_data.c.relPosHeading, s);
+      append_string( s, "D-GNSS: BaseLength: ");
+      to_ascii_n_decimals( baselength, 2, s);
+      append_string( s, "m  SlaveDown = ");
+      to_ascii_n_decimals( output_data.c.relPosNED[DOWN], 2, s);
+      append_string( s, "m D-GNSS-Heading= ");
+      to_ascii_n_decimals( RAD_2_DEGREES * output_data.c.relPosHeading, 1, s);
     }
   else
-    s=append_string( s, "No D-GNSS-fix");
+    append_string( s, "No D-GNSS-fix");
 
   newline( s);
   NMEA_buf.length = s - NMEA_buf.string;
