@@ -135,10 +135,8 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 	coordinates.minute = pvt.minute;
 	coordinates.second = pvt.second;
 
-#if OLD_COORD_FORMAT == 0
 	coordinates.nano   = pvt.nano;
 	coordinates.speed_acc = pvt.sAcc * SCALE_MM;
-#endif
 
 	GNSS_data_guard.release();
 

@@ -65,13 +65,13 @@ COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE + RESERVE];
 //!< format date and time from sat fix data
 char * format_date_time( char * target)
 {
-  target = format_2_digits( target, output_data.c.year);
-  target = format_2_digits( target, output_data.c.month);
-  target = format_2_digits( target, output_data.c.day);
+  format_2_digits( target, output_data.c.year);
+  format_2_digits( target, output_data.c.month);
+  format_2_digits( target, output_data.c.day);
   *target ++ = '_';
-  target = format_2_digits( target, output_data.c.hour);
-  target = format_2_digits( target, output_data.c.minute);
-  target = format_2_digits( target, output_data.c.second);
+  format_2_digits( target, output_data.c.hour);
+  format_2_digits( target, output_data.c.minute);
+  format_2_digits( target, output_data.c.second);
   *target=0;
   return target;
 }
@@ -133,80 +133,90 @@ void write_crash_dump( void)
 #endif
 
   next = format_date_time( buffer);
-  next = append_string (next, ".CRASHDUMP");
+  append_string (next, ".CRASHDUMP");
 
   fresult = f_open (&fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
   if (fresult != FR_OK)
     goto emergency_exit;
 
-  next=append_string( buffer, (char*)"Firmware: ");
-  next=append_string( next, GIT_TAG_INFO);
+  next = buffer;
+  append_string( next, (char*)"Firmware: ");
+  append_string( next, GIT_TAG_INFO);
   newline( next);
 
   f_write (&fp, buffer, next-buffer, &writtenBytes);
 
-  next=append_string( buffer, (char*)"Hardware: ");
-  next = utox( next, UNIQUE_ID[0], 8);
+  next = buffer;
+  append_string( next, (char*)"Hardware: ");
+  utox( next, UNIQUE_ID[0], 8);
   newline( next);
 
   f_write (&fp, buffer, next-buffer, &writtenBytes);
 
-  next=append_string( buffer, crashfile);
-  next=append_string( next, (char*)" Line: ");
+  next = buffer;
+  append_string( next, crashfile);
+  append_string( next, (char*)" Line: ");
   next = my_itoa( next, crashline);
   newline( next);
 
   f_write (&fp, buffer, next-buffer, &writtenBytes);
 
-  next=append_string( buffer, (char*)"Task:     ");
-  next=append_string( next, pcTaskGetName( (TaskHandle_t)(register_dump.active_TCB)));
+  next = buffer;
+  append_string( next, (char*)"Task:     ");
+  append_string( next, pcTaskGetName( (TaskHandle_t)(register_dump.active_TCB)));
   newline( next);
 
   f_write (&fp, buffer, next-buffer, &writtenBytes);
 
-  next=append_string( buffer, (char*)"IPSR:     ");
-  next = utox( next, register_dump.IPSR);
+  next = buffer;
+  append_string( next, (char*)"IPSR:     ");
+  utox( next, register_dump.IPSR);
   newline( next);
 
   f_write (&fp, buffer, next-buffer, &writtenBytes);
 
-  next=append_string( buffer, (char*)"PC:       ");
-  next = utox( next, register_dump.stacked_pc);
+  next = buffer;
+  append_string( next, (char*)"PC:       ");
+  utox( next, register_dump.stacked_pc);
   newline( next);
-  next=append_string( next, (char*)"LR:       ");
-  next = utox( next, register_dump.stacked_lr);
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  next=append_string( buffer, (char*)"BusFA:    ");
-  next = utox(  next, register_dump.Bus_Fault_Address);
+  append_string( next, (char*)"LR:       ");
+  utox( next, register_dump.stacked_lr);
   newline( next);
 
   f_write (&fp, buffer, next-buffer, &writtenBytes);
 
-  next=append_string( buffer, (char*)"MemA:     ");
-  next = utox( next, register_dump.Bad_Memory_Address);
-  newline( next);
-
-  next=append_string( next, (char*)"MemFS:    ");
-  next = utox( next, register_dump.Memory_Fault_status);
+  next = buffer;
+  append_string( next, (char*)"BusFA:    ");
+  utox(  next, register_dump.Bus_Fault_Address);
   newline( next);
 
   f_write (&fp, buffer, next-buffer, &writtenBytes);
 
-  next=append_string( buffer, (char*)"FPU_S:    ");
-  next = utox( next, register_dump.FPU_StatusControlRegister);
+  next = buffer;
+  append_string( next, (char*)"MemA:     ");
+  utox( next, register_dump.Bad_Memory_Address);
   newline( next);
 
-  next=append_string( next, (char*)"UsgFS:    ");
-  next = utox( next, register_dump.Usage_Fault_Status_Register);
+  append_string( next, (char*)"MemFS:    ");
+  utox( next, register_dump.Memory_Fault_status);
   newline( next);
 
   f_write (&fp, buffer, next-buffer, &writtenBytes);
 
-  next=append_string( buffer, (char*)"HardFS:   ");
-  next = utox( next, register_dump.Hard_Fault_Status);
+  next = buffer;
+  append_string( next, (char*)"FPU_S:    ");
+  utox( next, register_dump.FPU_StatusControlRegister);
+  newline( next);
+
+  append_string( next, (char*)"UsgFS:    ");
+  utox( next, register_dump.Usage_Fault_Status_Register);
+  newline( next);
+
+  f_write (&fp, buffer, next-buffer, &writtenBytes);
+
+  next = buffer;
+  append_string( next, (char*)"HardFS:   ");
+  utox( next, register_dump.Hard_Fault_Status);
   newline( next);
 
   f_write (&fp, buffer, next-buffer, &writtenBytes);
@@ -217,12 +227,13 @@ void write_crash_dump( void)
     // only if the dump is populated
       if( FPU_register_dump[i] != 0x00)
 	{
-	  next=append_string( buffer, (char*)"FPU dump:");
+	  next = buffer;
+	  append_string( next, (char*)"FPU dump:");
 	  newline( next);
 
 	  for( unsigned i=0; i<32; ++i)
 	    {
-	      next = utox( next, FPU_register_dump[i]);
+	      utox( next, FPU_register_dump[i]);
 	      newline( next);
 	    }
 	  f_write (&fp, buffer, next-buffer, &writtenBytes);
@@ -240,7 +251,7 @@ void write_crash_dump( void)
 extern RecorderDataType myTraceBuffer;
 
   next = format_date_time( buffer);
-  next = append_string (next, ".bin");
+  append_string (next, ".bin");
   fresult = f_open (&fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
   if (fresult != FR_OK)
     goto emergency_exit;
@@ -268,7 +279,7 @@ extern RecorderDataType myTraceBuffer;
   next = format_date_time( buffer);
   *next++ = '.';
   *next++  = 'f';
-  next = format_2_digits( next, sizeof( output_data_t) / sizeof(float));
+  format_2_digits( next, sizeof( output_data_t) / sizeof(float));
 
   fresult = f_open ( &fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
   if (fresult != FR_OK)
@@ -334,8 +345,8 @@ bool write_EEPROM_dump( const char * filename)
   SHA256 sha;
   int32_t writtenBytes = 0;
 
-  next = append_string (next, filename);
-  next = append_string (next, ".EEPROM");
+  append_string (next, filename);
+  append_string (next, ".EEPROM");
   *next=0;
 
   fresult = f_open (&fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
@@ -363,26 +374,27 @@ bool write_EEPROM_dump( const char * filename)
   sha.update( SHA_INITIALIZATION, sizeof( SHA_INITIALIZATION));
 
   newline(next); // first line = my filename (incl. time)
-  next = append_string( next, "SHA256(Flash Program) = \r\n");
+  append_string( next, "SHA256(Flash Program) = \r\n");
 
   for( unsigned i=0; i<16; ++i)
-      next = utox( next, (uint32_t)(digest[i]), 2);
+      utox( next, (uint32_t)(digest[i]), 2);
   newline(next);
   for( unsigned i=0; i<16; ++i)
-      next = utox( next, (uint32_t)(digest[i+16]), 2);
+      utox( next, (uint32_t)(digest[i+16]), 2);
   newline(next);
 
   (void)f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
   sha.update( (uint8_t *)buffer, next-buffer);
 
-  next = append_string( buffer, "Fw = ");
-  next = append_string( next, GIT_TAG_INFO);
+  next = buffer;
+  append_string( next, "Fw = ");
+  append_string( next, GIT_TAG_INFO);
   newline(next);
-  next = append_string( next, "Hw = ");
-  next = utox( next, UNIQUE_ID[0], 8);
-  next = utox( next, UNIQUE_ID[1], 8);
-  next = utox( next, UNIQUE_ID[2], 8);
-  next = utox( next, UNIQUE_ID[3], 8);
+  append_string( next, "Hw = ");
+  utox( next, UNIQUE_ID[0], 8);
+  utox( next, UNIQUE_ID[1], 8);
+  utox( next, UNIQUE_ID[2], 8);
+  utox( next, UNIQUE_ID[3], 8);
   newline(next);
 
   fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
@@ -402,8 +414,9 @@ bool write_EEPROM_dump( const char * filename)
 	  if( PERSISTENT_DATA[index].is_an_angle)
 	    value *= 180.0 / M_PI_F; // format it human readable
 
-	  next = append_string( buffer, PERSISTENT_DATA[index].mnemonic);
-	  next = append_string (next," = ");
+	  next = buffer;
+	  append_string( next, PERSISTENT_DATA[index].mnemonic);
+	  append_string (next," = ");
 	  next = my_ftoa (next, value);
 	  newline(next);
 
@@ -418,8 +431,9 @@ bool write_EEPROM_dump( const char * filename)
       }
 
   uint16_t option = *(uint16_t *) 0x1fffc000;
-  next = append_string( buffer, "Option bytes = ");
-  next = utox( next, option >> 8, 2);
+  next = buffer;
+  append_string( next, "Option bytes = ");
+  utox( next, option >> 8, 2);
   newline(next);
   sha.update( (uint8_t *)buffer, next-buffer);
   fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
@@ -430,13 +444,14 @@ bool write_EEPROM_dump( const char * filename)
     }
 
   sha.make_digest(digest);
-  next = append_string( buffer, "SHA256(text above) = \r\n");
+  next = buffer;
+  append_string( next, "SHA256(text above) = \r\n");
 
   for( unsigned i=0; i<16; ++i)
-      next = utox( next, (uint32_t)(digest[i]), 2);
+      utox( next, (uint32_t)(digest[i]), 2);
   newline(next);
   for( unsigned i=0; i<16; ++i)
-      next = utox( next, (uint32_t)(digest[i+16]), 2);
+      utox( next, (uint32_t)(digest[i+16]), 2);
   newline(next);
 
   newline(next);
@@ -735,7 +750,8 @@ restart:
       uint8_t *buf_ptr = mem_buffer;
 
       // generate filename based on timestamp
-      char * next = append_string( out_filename, "logger/");
+      char * next = out_filename;
+      append_string( next, "logger/");
       next = format_date_time( next);
 
       acquire_privileges();
@@ -744,7 +760,7 @@ restart:
 
       *next++ = '.';
       *next++  = 'f';
-      next = format_2_digits( next, sizeof(observations_type) / sizeof(float));
+      format_2_digits( next, sizeof(observations_type) / sizeof(float));
 
       fresult = f_open (&the_file, out_filename, FA_CREATE_ALWAYS | FA_WRITE);
       if (fresult != FR_OK)
