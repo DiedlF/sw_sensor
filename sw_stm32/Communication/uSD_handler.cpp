@@ -639,6 +639,7 @@ void uSD_handler_runnable (void*)
 restart:
   // ...just to be sure ...
   ensure_EEPROM_parameter_integrity();
+  delay(1000); //Dirty fix for issue #177
 
   HAL_SD_DeInit (&hsd);
   if(! BSP_PlatformIsDetected())
