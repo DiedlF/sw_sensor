@@ -217,7 +217,7 @@ void communicator_runnable (void*)
 	    }
 	}
 
-      organizer.on_new_pressure_data(output_data);
+      organizer.on_new_pressure_data( output_data.m.static_pressure, output_data.m.pitot_pressure);
       organizer.update_every_10ms(output_data);
 
       // service external commands if any
