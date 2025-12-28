@@ -31,6 +31,8 @@
 #include "NMEA_format.h"
 #include "watchdog_handler.h"
 
+COMMON bool external_magnetometer_available;
+
 #define CAN_Id_Send_Config_Value 0x12f
 
 ROM EEPROM_PARAMETER_ID parameter_list[] =
@@ -158,45 +160,45 @@ bool get_vario_mode_updates(float32_t &value)
 void
 CAN_listener_task_runnable (void*)
 {
+  TickType_t magnetometer_last_heard=0;
+
   CAN_distributor_entry my_entry
     { 0x040F, 0x0402, &can_packet_q }; // Listen for "Set System Wide Config Item" on CAN
   subscribe_CAN_messages (my_entry);
 
-#if WITH_EXTERNAL_IMU
+#if WITH_EXTERNAL_MAGNETOMETER
   my_entry.ID_value = 0x160;
-  my_entry.ID_mask = 0x0ff0;
+  my_entry.ID_mask = 0x0fff;
   subscribe_CAN_messages (my_entry);
 #endif
 
   CANpacket p;
   while (true)
     {
-      can_packet_q.receive(p);
 
-#if WITH_EXTERNAL_IMU
+#if WITH_EXTERNAL_MAGNETOMETER
+      extern bool external_magnetometer_available;
 
-	switch (p.id)
+      bool rx_ed = can_packet_q.receive(p, 100);
+      if( rx_ed)
+	{
+	if ( (p.id == 0x160) && (p.dlc == 6))
 	  {
-	  case 0x118:
-	    output_data.extra.acc[0] = p.data_sh[0] * XTRA_ACC_SCALE;
-	    output_data.extra.acc[1] = p.data_sh[1] * XTRA_ACC_SCALE;
-	    output_data.extra.acc[2] = p.data_sh[2] * XTRA_ACC_SCALE;
-	    output_data.extra.temperature = TEMP_CONVERSION( p.data_sh[3]);
-	    break;
-	  case 0x119:
-	    output_data.extra.gyro[0] = p.data_sh[0] * XTRA_GYRO_SCALE;
-	    output_data.extra.gyro[1] = p.data_sh[1] * XTRA_GYRO_SCALE;
-	    output_data.extra.gyro[2] = p.data_sh[2] * XTRA_GYRO_SCALE;
-	    break;
-	  case 0x11a:
-	    output_data.extra.mag[0] = p.data_sh[0] * XTRA_MAG_SCALE;
-	    output_data.extra.mag[1] = p.data_sh[1] * XTRA_MAG_SCALE;
-	    output_data.extra.mag[2] = p.data_sh[2] * XTRA_MAG_SCALE;
-	    break;
-	  default:
-	    break;
+	    output_data.external_magnetometer_reading[0] = p.data_h[0] * 2.666666666e-4f; // 1.0 / (75LSB/uTesla * 50 uTesla)
+	    output_data.external_magnetometer_reading[1] = p.data_h[1] * 2.666666666e-4f;
+	    output_data.external_magnetometer_reading[2] = p.data_h[2] * 2.666666666e-4f;
+	    external_magnetometer_available = true;
+	    magnetometer_last_heard = xTaskGetTickCount();
 	  }
+	}
+      else
+	{
+	  if( xTaskGetTickCount() - magnetometer_last_heard > 100)
+	    external_magnetometer_available = false;
+	}
 
+#else
+      can_packet_q.receive(p);
 #endif
 
       if(( p.id & 0x40F) == 0x402) // = "set system wide config item"
