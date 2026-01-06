@@ -51,10 +51,7 @@
 #include "common.h"
 #include "system_configuration.h"
 #include "FreeRTOS_wrapper.h"
-/* Private typedef -----------------------------------------------------------*/
-/* Private define ------------------------------------------------------------*/
-/* Private macro -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
+#include "EEPROM_data_file_implementation.h"
 
 /* Global variable used to store variable value in read sequence */
 COMMON uint16_t DataVar = 0;
@@ -66,7 +63,6 @@ COMMON bool VirtExistsVarTab[NB_OF_VAR] = {false};
 
 COMMON static bool initialized = false;
 COMMON static uint32_t lastWriteTickTime = 0;
-COMMON static QueueHandle_t writeSignalQueue = NULL;
 
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -119,18 +115,16 @@ bool EE_recover_from_old_layout()
    return recoverStatus; /*Return the status if old data has been found and can be recovered*/
 }
 
+COMMON Queue <flash_write_order> flash_command_queue( 3);
+
 void EE_task_runnable(void *)
 {
-  BaseType_t queueStatus = 0;
-  writeSignalQueue = xQueueCreate(1,0); /* Create a signal queue to the background writing task */
-  ASSERT(NULL != writeSignalQueue); /* Must never happen */
-
   /* Copy EEPROM Parameter IDs to the VirtAddVarTab. NOTE: This is not optimal as NB_OF_VAR shall be set to
    * PERSISTENT_DATA_ENTRIES but this value is not available for a define. NB_OF_VAR is slightly to large because
    * some IDs in EEPROM_PARAMETER_ID are skipped but easier to implement. */
   ASSERT(PERSISTENT_DATA_ENTRIES < NB_OF_VAR);
   for(unsigned int i = 0; i < PERSISTENT_DATA_ENTRIES; i++){
-      ASSERT(PERSISTENT_DATA[i].id < 0xFFFF); // Only ids < 0xFFFF are allowed.
+      ASSERT(PERSISTENT_DATA[i].id < 0xFFFF); // Only IDs < 0xFFFF are allowed.
       VirtAddVarTab[i] = PERSISTENT_DATA[i].id;
   }
 
@@ -179,27 +173,47 @@ void EE_task_runnable(void *)
   lastWriteTickTime = xTaskGetTickCount(); /* Initialize last write tick time with read out tick time */
   initialized = true; /* Set the EEPROM to initialized and thus make the public interface functioning.*/
 
-  for(;;){
-      queueStatus = xQueueReceive(writeSignalQueue, 0, portMAX_DELAY); /* Wait for a write trigger signal forever */
-      ASSERT(pdPASS == queueStatus);
+  for(;;)
+    {
+      flash_write_order order;
+      flash_command_queue.receive( order, INFINITE_WAIT);
 
-      /* sync ram data to flash*/
-      status = HAL_FLASH_Unlock();
-      ASSERT(HAL_OK == status);
-
-      for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+      if( order.dest == 0 && order.n_words == 0 && order.source == 0)
       {
-	  status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
-	  if ((data != VirtDatVarTab[varIdx]) || (status != 0 )){
-	      /* Write variable to flash if it differs or does not exist yet */
-	      status = EE_WriteVariable(VirtAddVarTab[varIdx], VirtDatVarTab[varIdx]);
-	      ASSERT(HAL_OK == status); /* This shall never happen */
-	      lastWriteTickTime = xTaskGetTickCount(); /* Update last write tick time */
+	  status = HAL_FLASH_Unlock();
+	  ASSERT(HAL_OK == status);
+
+	  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+	  {
+	      status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
+	      if ((data != VirtDatVarTab[varIdx]) || (status != 0 )){
+		  /* Write variable to flash if it differs or does not exist yet */
+		  status = EE_WriteVariable(VirtAddVarTab[varIdx], VirtDatVarTab[varIdx]);
+		  ASSERT(HAL_OK == status); /* This shall never happen */
+		  lastWriteTickTime = xTaskGetTickCount(); /* Update last write tick time */
+	      }
 	  }
+	  status = HAL_FLASH_Lock();
+	  ASSERT(HAL_OK == status);
       }
-      status = HAL_FLASH_Lock();
-      ASSERT(HAL_OK == status);
-  }
+      else
+	{
+	  HAL_StatusTypeDef status;
+	  status = HAL_FLASH_Unlock();
+	  ASSERT(HAL_OK == status);
+
+	  while( order.n_words --)
+	    {
+	      status = HAL_FLASH_Program( TYPEPROGRAM_WORD, (uint32_t)(order.dest), *(order.source) );
+	      ASSERT( status == HAL_OK);
+	      ++order.dest;
+	      ++order.source;
+	    }
+
+	  status = HAL_FLASH_Lock();
+	  ASSERT(HAL_OK == status);
+	}
+    }
 }
 
 /**
@@ -242,23 +256,27 @@ uint16_t EE_ReadVariableBuffered(uint16_t VirtAddress, uint16_t* Data)
   */
 uint16_t EE_WriteVariableBuffered(uint16_t VirtAddress, uint16_t Data)
 {
-  while (false == initialized){
-      vTaskDelay(1); //Wait forever until initialization is done
-  }
+  while ( not initialized)
+      vTaskDelay(10); //Wait forever until initialization is done
 
   uint16_t varIdx = 0;
-  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++){
-      if (VirtAddress == VirtAddVarTab[varIdx] ){
-	  if (Data != VirtDatVarTab[varIdx]){
+  for (varIdx = 0; varIdx < NB_OF_VAR; varIdx++)
+    {
+      if (VirtAddress == VirtAddVarTab[varIdx] )
+	{
+	  if (Data != VirtDatVarTab[varIdx])
+	    {
 	      /* Only trigger a flash write if the value really changed */
 	      VirtDatVarTab[varIdx] = Data;
 	      lastWriteTickTime = xTaskGetTickCount();
-	      xQueueSend(writeSignalQueue, 0, 0); /* Send a trigger signal. Ignore if signal already in queue */
-	  }
+
+	      flash_write_order cmd = {0, 0, 0};
+	      flash_command_queue.send( cmd, NO_WAIT);
+	    }
 	  VirtExistsVarTab[varIdx] = true;
 	  return HAL_OK;
-      }
-  }
+	}
+    }
   ASSERT(0); //invalid address this shall never happen
   return HAL_ERROR;
 }
@@ -285,7 +303,6 @@ static ROM TaskParameters_t p =
   };
 
 COMMON RestrictedTask EE_background_task (p);
-
 
 /**
   * @brief  Restore the pages to a known good state in case of page's status
