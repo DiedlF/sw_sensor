@@ -36,7 +36,6 @@
 #include "GNSS_driver.h"
 #include "CAN_distributor.h"
 #include "uSD_handler.h"
-#include "compass_ground_calibration.h"
 #include "persistent_data.h"
 #include "communicator.h"
 #include "system_state.h"
@@ -182,7 +181,6 @@ void communicator_runnable (void*)
 
   communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
 
-  compass_ground_calibration_t compass_ground_calibration;
   unsigned GNSS_watchdog = 0;
 
   // this is the MAIN data acquisition and processing loop
@@ -218,7 +216,7 @@ void communicator_runnable (void*)
 	}
 
       organizer.on_new_pressure_data( output_data.m.static_pressure, output_data.m.pitot_pressure);
-      organizer.update_every_10ms(output_data);
+      organizer.update_at_100_Hz(output_data);
 
       // service external commands if any
       communicator_command_t command;
@@ -366,8 +364,10 @@ static ROM TaskParameters_t p =
   COMMUNICATOR_START_PRIORITY, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
-      { (void *)&soft_iron_compensator, SOFT_IRON_DATA_SIZE, portMPU_REGION_READ_WRITE},
-      { 0, 0, 0 } } };
+      { 0, 0, 0 },
+      { 0, 0, 0 }
+    }
+  };
 
 COMMON RestrictedTask communicator_task (p);
 

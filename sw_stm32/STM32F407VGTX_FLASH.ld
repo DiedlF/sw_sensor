@@ -147,10 +147,11 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
-  .framebuffer :
+  .mag_calc_data :
   {
-    *(framebuffer)
-    . = ALIGN( 0x10000);
+    . = ALIGN(8192);
+        KEEP(*(.mag_calc_data))
+        KEEP(*(.mag_calc_data*))
   } >RAM
 
   /* Used by the startup to initialize data */

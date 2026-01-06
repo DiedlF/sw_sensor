@@ -298,44 +298,6 @@ emergency_exit:
     /* wake watchdog */;
 }
 
-bool write_soft_iron_parameters( void)
-{
-  FRESULT fresult;
-  FIL fp;
-  UINT bytes_written;
-
-  const computation_float_type * data = soft_iron_compensator.get_current_parameters();
-  if( data == 0)
-    return true;
-
-  fresult = f_open (&fp, (char *)"soft_iron_parameters.f30", FA_CREATE_ALWAYS | FA_WRITE);
-  if (fresult != FR_OK)
-    return true;
-
-  f_write (&fp,(const char *)data, soft_iron_compensator.get_parameters_size(), &bytes_written);
-  f_close( &fp);
-  return false;
-}
-
-void read_soft_iron_parameters( void)
-{
-  FIL the_file;
-  FRESULT fresult;
-  UINT bytes_read;
-
-  // try to open mag 3D calibration file
-  fresult = f_open (&the_file, (char *)"soft_iron_parameters.f30", FA_READ);
-  if( fresult != FR_OK)
-    return;
-
-  unsigned size = soft_iron_compensator.get_parameters_size();
-  fresult = f_read( &the_file, mem_buffer, size, &bytes_read);
-  if( (fresult == FR_OK) && (bytes_read  == size) )
-    soft_iron_compensator.set_current_parameters((float *)mem_buffer);
-  f_close(&the_file);
-}
-
-
 bool write_EEPROM_dump( const char * filename)
 {
   FRESULT fresult;
@@ -719,8 +681,6 @@ restart:
   read_magnetic_3D_data(); // read 3D data if existent
 #endif
 
-  read_soft_iron_parameters(); // if they exist
-
   FILINFO filinfo;
   fresult = f_stat("logger", &filinfo);
   if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)==0))
@@ -829,11 +789,6 @@ restart:
 
 		  delay(100); // just to be sure everything is written
 
-#if ACTIVATE_MAGNETIC_3D_MECHANIM
-		  write_magnetic_3D_data();
-#endif
-		  write_soft_iron_parameters();
-
 		  /* Check if EEPROM data changed recently */
 		  if (EE_GetLastChangeTickTime() != last_eeprom_write_tick)
 		    {
@@ -861,7 +816,7 @@ static TaskParameters_t p =
   LOGGER_PRIORITY + portPRIVILEGE_BIT, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { (void *)&soft_iron_compensator, SOFT_IRON_DATA_SIZE, portMPU_REGION_READ_WRITE},
+      { 0, 0, 0},
       { 0, 0, 0}
       } 
     };

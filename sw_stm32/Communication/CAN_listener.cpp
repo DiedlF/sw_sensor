@@ -184,9 +184,9 @@ CAN_listener_task_runnable (void*)
 	{
 	if ( (p.id == 0x160) && (p.dlc == 6))
 	  {
-	    output_data.external_magnetometer_reading[0] = (float32_t)(p.data_sh[0]) * 2.666666666e-4f; // 1.0 / (75LSB/uTesla * 50 uTesla)
-	    output_data.external_magnetometer_reading[1] = (float32_t)(p.data_sh[1]) * 2.666666666e-4f;
-	    output_data.external_magnetometer_reading[2] = (float32_t)(p.data_sh[2]) * 2.666666666e-4f;
+	    output_data.external_magnetometer_reading[0] = (float32_t)(p.data_sh[0]) * 0.01333333f; // 1 uTesla / 75LSB
+	    output_data.external_magnetometer_reading[1] = (float32_t)(p.data_sh[1]) * 0.01333333f;
+	    output_data.external_magnetometer_reading[2] = (float32_t)(p.data_sh[2]) * 0.01333333f;
 	    external_magnetometer_available = true;
 	    magnetometer_last_heard = xTaskGetTickCount();
 	  }
