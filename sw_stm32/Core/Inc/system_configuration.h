@@ -90,7 +90,9 @@
 
 // more parameters
 
-#define FLASH_ACCESS_TIMEOUT		100
+#define FLASH_ISR_TIMEOUT		2
+#define FLASH_ERASE_TIMEOUT		250
+#define FLASH_ACCESS_TIMEOUT		10
 
 #define NMEA_REPORTING_PERIOD		250 // period in clock ticks for NMEA output
 #define NMEA_DECIMATION_RATIO		6  // slow-down factor for the slow properties

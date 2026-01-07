@@ -41,7 +41,10 @@
 #include "compass_calibrator_3D.h"
 #endif
 #include "SHA256.h"
-#include "EEPROM_data_file_implementation.h"
+#include "EEPROM_data_file_implementation.h""
+
+#include "persistent_data_file.h""
+extern EEPROM_file_system permanent_data_file;
 
 ROM uint8_t SHA_INITIALIZATION[] = "presently a well-known string";
 
@@ -561,12 +564,17 @@ read_software_update (void)
 //!< this executable takes care of all uSD reading and writing
 void uSD_handler_runnable (void*)
 {
+re_initialize_flash:
+
   recover_and_initialize_flash();
 
 restart:
 
 // ...just to be sure ...
-  ensure_EEPROM_parameter_integrity();
+  if( not ensure_EEPROM_parameter_integrity())
+    goto re_initialize_flash;
+
+  bool OK = permanent_data_file.is_consistent();
 
   HAL_SD_DeInit (&hsd);
   if(! BSP_PlatformIsDetected())
@@ -760,12 +768,13 @@ restart:
 }
 
 #define STACKSIZE 2048
-static uint32_t __ALIGNED(STACKSIZE*4) stack_buffer[STACKSIZE];
+uint32_t __ALIGNED(STACKSIZE*4) uSD_stack_buffer[STACKSIZE];
 
 static TaskParameters_t p =
   { uSD_handler_runnable, "uSD",
   STACKSIZE, 0,
-  LOGGER_PRIORITY + portPRIVILEGE_BIT, stack_buffer,
+  LOGGER_PRIORITY + portPRIVILEGE_BIT,
+  uSD_stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
       { 0, 0, 0},

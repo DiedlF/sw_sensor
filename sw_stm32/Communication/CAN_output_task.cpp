@@ -35,6 +35,8 @@ bool CAN_enqueue( const CANpacket &p, unsigned max_delay)
 
 void CAN_task_runnable( void *)
 {
+  suspend();
+
   bool horizon_available = configuration( HORIZON);
   unsigned decimator_1_second=10;
 
@@ -69,7 +71,7 @@ static ROM TaskParameters_t p =
       0,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { 0, 0, 0 },
+      { (void *)0x080C0000, 0x00040000, portMPU_REGION_READ_ONLY }, // EEPROM
       { 0, 0, 0 }
     }
   };

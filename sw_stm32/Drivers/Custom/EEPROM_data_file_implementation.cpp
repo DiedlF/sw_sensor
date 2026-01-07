@@ -15,6 +15,7 @@
 #define PAGE_SIZE_LONG_WORDS 0x04000
 
 COMMON Queue <flash_write_order> flash_command_queue( 3);
+COMMON Semaphore flash_isr_to_task;
 
 COMMON EEPROM_file_system permanent_data_file;
 extern Queue <flash_write_order> flash_command_queue;
@@ -22,12 +23,15 @@ extern Queue <flash_write_order> flash_command_queue;
 void FLASH_write( uint32_t * dest, uint32_t * source, unsigned n_words)
 {
   flash_write_order cmd;
-  cmd.dest=dest;
-  cmd.source=source;
-  cmd.n_words=n_words;
+  bool result;
 
-  bool result = flash_command_queue.send( cmd, FLASH_ACCESS_TIMEOUT);
-  ASSERT( result);
+  while( n_words --)
+    {
+    cmd.dest=dest++;
+    cmd.value = *source++;
+    result = flash_command_queue.send( cmd, FLASH_ACCESS_TIMEOUT);
+    ASSERT( result);
+    }
 }
 
 //!< order sector erase
@@ -36,19 +40,6 @@ bool erase_sector( unsigned sector)
   if( (sector != 0) && (sector != 1))
     return false;
 
-  flash_write_order cmd;
-  cmd.dest = sector == 0 ? PAGE_0_HEAD : PAGE_1_HEAD;
-  cmd.source=0;
-  cmd.n_words=PAGE_SIZE_WORDS;
-
-  bool result = flash_command_queue.send( cmd, FLASH_ACCESS_TIMEOUT);
-  ASSERT( result);
-  return true;
-}
-
-//!< execute sector erase
-bool erase_sector_operation( unsigned sector)
-{
   uint64_t * location = sector == 0 ? (uint64_t *)PAGE_0_HEAD : (uint64_t *)PAGE_1_HEAD;
   unsigned size = PAGE_SIZE_LONG_WORDS;
 
@@ -61,44 +52,30 @@ bool erase_sector_operation( unsigned sector)
 	break;
       }
     }
-
   if( is_erased)
     return true;
 
-  HAL_StatusTypeDef status;
-  FLASH_EraseInitTypeDef EraseInit;
-  uint32_t SectorError = 0;
-
-  EraseInit.TypeErase = FLASH_TYPEERASE_SECTORS;
-  EraseInit.VoltageRange = VOLTAGE_RANGE;
-
-  EraseInit.Sector = sector == 0 ? FLASH_SECTOR_10 : FLASH_SECTOR_11;
-  EraseInit.NbSectors = 1;
-  status = HAL_FLASHEx_Erase(&EraseInit, &SectorError);
-  return (status == HAL_OK);
+  flash_write_order cmd;
+  cmd.dest = (uint32_t *)sector;
+  bool result = flash_command_queue.send( cmd, FLASH_ERASE_TIMEOUT);
+  ASSERT( result);
+  return true;
 }
 
-bool create_virgin_flash_file_system( bool wipe_all = false)
+//!< execute sector erase
+void erase_sector_operation( unsigned sector)
 {
-  if( wipe_all)
-    return erase_sector( 0) && erase_sector( 1);
+  ASSERT( sector < 2);
+  HAL_StatusTypeDef status;
 
-  uint16_t header = *(__IO uint16_t*)PAGE_0_HEAD;
-  if( header == 0) // page 0 marked valid
-    {
-      if( not erase_sector( 1))
-	return false;
+  FLASH_EraseInitTypeDef EraseInit;
+  EraseInit.TypeErase = FLASH_TYPEERASE_SECTORS;
+  EraseInit.VoltageRange = VOLTAGE_RANGE;
+  EraseInit.Sector = sector == 0 ? FLASH_SECTOR_10 : FLASH_SECTOR_11;
+  EraseInit.NbSectors = 1;
 
-      permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_BYTES);
-    }
-  else
-    {
-      if( not erase_sector( 0))
-	return false;
-
-      permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_BYTES);
-    }
-  return true;
+  status = HAL_FLASHEx_Erase_IT( &EraseInit);
+  ASSERT(status == HAL_OK);
 }
 
 float configuration (EEPROM_PARAMETER_ID id)
@@ -126,7 +103,7 @@ float configuration (EEPROM_PARAMETER_ID id)
     }
 }
 
-void file_system_page_swap( void)
+bool file_system_page_swap( void)
 {
   if( permanent_data_file.get_head() == (void *)PAGE_1_HEAD)
     {
@@ -136,7 +113,7 @@ void file_system_page_swap( void)
       new_data_file.import_all_data(permanent_data_file);
       result = erase_sector( 1);
       ASSERT( result);
-      permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_BYTES);
+      return permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
      }
   else
     {
@@ -146,7 +123,7 @@ void file_system_page_swap( void)
       new_data_file.import_all_data(permanent_data_file);
       result = erase_sector( 0);
       ASSERT( result);
-      permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_BYTES);
+      return permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
     }
 }
 
@@ -240,62 +217,98 @@ void recover_and_initialize_flash( void)
     {
       // prepare page 0 for data import
       erase_sector( 0);
-      permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_BYTES);
-      bool success = import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
+      delay( 1000);
+      bool success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      ASSERT( success);
+      success = import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
       erase_sector( 1); // now we clean the upper sector from the old data
+      delay( 1000);
       return; // job done
     }
   if( *(uint16_t *)PAGE_0_HEAD == 0) // new flash layout, using page 0
     {
       erase_sector( 1);
-      permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_0_HEAD+PAGE_SIZE_BYTES);
-      bool success = import_legacy_EEPROM_data( PAGE_1_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
+      delay( 1000);
+      bool success = permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
+      ASSERT( success);
+      success = import_legacy_EEPROM_data( PAGE_1_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
       erase_sector( 0); // now we clean the upper sector from the old data
+      delay( 1000);
       return; // job done
     }
   if( *(uint16_t *)PAGE_1_HEAD == 0) // new flash layout, using page 0
     {
       erase_sector( 0);
-      permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_BYTES);
-      bool success = import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
+      delay( 1000);
+      bool success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      success = import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
       erase_sector( 1); // now we clean the upper sector from the old data
+      delay( 1000);
       return; // job done
+    }
+
+  if( *(int32_t *)PAGE_1_HEAD != -1) // check for file system on page 1
+    {
+      bool success = permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
+      if( success)
+	return;
+    }
+  else if( *(int32_t *)PAGE_0_HEAD != -1) // check for file system on page 0
+    {
+      bool success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      if( success)
+	return;
     }
 
   // we did not find any legacy data and no valid new file system
   // so we clean the complete set of sectors and start using sector 0
-  create_virgin_flash_file_system( true);
+  erase_sector( 0);
+  delay( 1000);
+  erase_sector( 1);
+  delay( 1000);
+  bool success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+  ASSERT( success);
 }
 
 static void EEPROM_writing_runnable( void *)
 {
+  uint32_t prioritygroup = NVIC_GetPriorityGrouping ();
+
+  NVIC_SetPriority ((IRQn_Type) FLASH_IRQn,
+		    NVIC_EncodePriority (prioritygroup, STANDARD_ISR_PRIORITY, 0));
+  NVIC_EnableIRQ ((IRQn_Type) FLASH_IRQn);
+
   flash_write_order order;
+  bool no_timeout;
   while( true)
     {
       flash_command_queue.receive( order, INFINITE_WAIT);
-
-      if( order.source == 0 && order.n_words == PAGE_SIZE_WORDS) // erase commmand
-	{
-	  if( order.dest == PAGE_0_HEAD)
-	    erase_sector_operation( 0);
-	  else if( order.dest == PAGE_1_HEAD)
-	    erase_sector_operation( 1);
-	  return;
-	}
 
       HAL_StatusTypeDef status;
       status = HAL_FLASH_Unlock();
       ASSERT(HAL_OK == status);
 
-      while( order.n_words --)
+      if( order.dest == 0) // erase commmand
 	{
-	  status = HAL_FLASH_Program( TYPEPROGRAM_WORD, (uint32_t)(order.dest), *(order.source) );
+	  erase_sector_operation( 0);
+	  no_timeout = flash_isr_to_task.wait( INFINITE_WAIT);
+	  ASSERT( no_timeout);
+	}
+      else if( order.dest == (uint32_t *)1)
+	{
+	  erase_sector_operation( 1);
+	  no_timeout = flash_isr_to_task.wait( INFINITE_WAIT);
+	  ASSERT( no_timeout);
+	}
+      else
+	{
+	  status = HAL_FLASH_Program_IT( TYPEPROGRAM_WORD, (uint32_t)(order.dest), order.value);
 	  ASSERT( status == HAL_OK);
-	  ++order.dest;
-	  ++order.source;
+	  no_timeout = flash_isr_to_task.wait( INFINITE_WAIT);
+	  ASSERT( no_timeout);
 	}
 
       status = HAL_FLASH_Lock();
@@ -312,13 +325,20 @@ static ROM TaskParameters_t p =
     "EEPROM",
     STACKSIZE,
     0,
-    EEPROM_WRITER_PRIORITY,
+    EEPROM_WRITER_PRIORITY | portPRIVILEGE_BIT,
     stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
-      { PAGE_0_HEAD, PAGE_SIZE_BYTES, portMPU_REGION_READ_WRITE },
+      { PAGE_0_HEAD, PAGE_SIZE_BYTES * 2, portMPU_REGION_READ_WRITE },
       { 0, 0, 0 }
     }
   };
 
 static RestrictedTask EEPROM_accessor( p);
+
+extern "C" void FLASH_IRQHandler( void)
+{
+  HAL_FLASH_IRQHandler();
+  flash_isr_to_task.signal_from_ISR();
+}
+

@@ -6,8 +6,7 @@
 typedef struct
 {
   uint32_t * dest;
-  uint32_t * source;
-  unsigned n_words;
+  uint32_t value;
 } flash_write_order;
 
 void recover_and_initialize_flash( void);

@@ -176,6 +176,7 @@ void communicator_runnable (void*)
   organizer.initialize_after_first_measurement(output_data);
 
   NMEA_task.resume();
+  CAN_task.resume();
 
   unsigned synchronizer_10Hz = 10; // re-sampling 100Hz -> 10Hz
   unsigned GNSS_watchdog = 0;
@@ -361,8 +362,8 @@ static ROM TaskParameters_t p =
   COMMUNICATOR_PRIORITY, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
-      { 0, 0, 0 },
-      { 0, 0, 0 }
+      { (void *)0x080C0000, 0x00040000, portMPU_REGION_READ_ONLY }, // EEPROM
+      { &temporary_mag_calculation_data, 8192, portMPU_REGION_READ_WRITE}
     }
   };
 
