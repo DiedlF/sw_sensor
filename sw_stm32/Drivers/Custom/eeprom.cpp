@@ -72,7 +72,7 @@ static uint16_t EE_VerifyPageFullWriteVariable(uint16_t VirtAddress, uint16_t Da
 static uint16_t EE_PageTransfer(uint16_t VirtAddress, uint16_t Data);
 static uint16_t EE_VerifyPageFullyErased(uint32_t Address);
 static uint16_t EE_Init(void);
-static uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data);
+uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data);
 static uint16_t EE_WriteVariable(uint16_t VirtAddress, uint16_t Data);
 
 bool EE_recover_from_old_layout()
@@ -115,7 +115,7 @@ bool EE_recover_from_old_layout()
    return recoverStatus; /*Return the status if old data has been found and can be recovered*/
 }
 
-COMMON Queue <flash_write_order> flash_command_queue( 3);
+#if 0
 
 void EE_task_runnable(void *)
 {
@@ -219,6 +219,8 @@ void EE_task_runnable(void *)
     }
 }
 
+#endif
+
 /**
   * @brief  Returns the last stored variable data, if found, which correspond to
   *   the passed virtual address from the ram buffer
@@ -246,7 +248,7 @@ uint16_t EE_ReadVariableBuffered(uint16_t VirtAddress, uint16_t* Data)
     }
   return 1; /* variable not found*/
 }
-
+#if 0 // todo remove me
 /**
   * @brief  Writes/upadtes variable data in in the RAM buffer and sets a flag
   *         to trigger a write to the flash in the background task.
@@ -306,6 +308,7 @@ static ROM TaskParameters_t p =
   };
 
 COMMON RestrictedTask EE_background_task (p);
+#endif
 
 /**
   * @brief  Restore the pages to a known good state in case of page's status
@@ -655,6 +658,8 @@ uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data)
   return ReadStatus;
 }
 
+#if 0 // todo remove me
+
 /**
   * @brief  Writes/upadtes variable data in EEPROM.
   * @param  VirtAddress: Variable virtual address
@@ -732,6 +737,8 @@ static HAL_StatusTypeDef EE_Format(void)
   return HAL_OK;
 }
 
+#endif
+
 /**
   * @brief  Find valid Page for write or read operation
   * @param  Operation: operation to achieve on the valid page.
@@ -802,6 +809,8 @@ static uint16_t EE_FindValidPage(uint8_t Operation)
       return PAGE0;             /* Page0 valid */
   }
 }
+
+#if 0 // todo clean up
 
 /**
   * @brief  Verify if active page is full and Writes variable in EEPROM.
@@ -968,7 +977,9 @@ static uint16_t EE_PageTransfer(uint16_t VirtAddress, uint16_t Data)
 
   /* Return last operation flash status */
   return FlashStatus;
-}
+  }
+
+#endif
 
 /**
   * @}

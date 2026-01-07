@@ -8,11 +8,14 @@
 #include "EEPROM_data_file_implementation.h"
 #include "stm32f4xx_hal.h"
 
-#define PAGE_0_HEAD 0x080C0000
-#define PAGE_1_HEAD 0x080E0000
+#define PAGE_0_HEAD ((uint32_t *)0x080C0000)
+#define PAGE_1_HEAD ((uint32_t *)0x080E0000)
 #define PAGE_SIZE_BYTES 0x20000
+#define PAGE_SIZE_WORDS 0x08000
+#define PAGE_SIZE_LONG_WORDS 0x04000
 
-COMMON bool using_permanent_data_file = false;
+COMMON Queue <flash_write_order> flash_command_queue( 3);
+
 COMMON EEPROM_file_system permanent_data_file;
 extern Queue <flash_write_order> flash_command_queue;
 
@@ -23,24 +26,31 @@ void FLASH_write( uint32_t * dest, uint32_t * source, unsigned n_words)
   cmd.source=source;
   cmd.n_words=n_words;
 
-  bool result = flash_command_queue.send( cmd, 10);
+  bool result = flash_command_queue.send( cmd, FLASH_ACCESS_TIMEOUT);
   ASSERT( result);
 }
 
-bool setup_flash_file_system( void)
-{
-  if( *(__IO uint16_t*)PAGE_1_HEAD != 0xffffffff)
-    permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_BYTES);
-  else
-    permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_BYTES);
-
-  return permanent_data_file.is_consistent();
-}
-
+//!< order sector erase
 bool erase_sector( unsigned sector)
 {
+  if( (sector != 0) && (sector != 1))
+    return false;
+
+  flash_write_order cmd;
+  cmd.dest = sector == 0 ? PAGE_0_HEAD : PAGE_1_HEAD;
+  cmd.source=0;
+  cmd.n_words=PAGE_SIZE_WORDS;
+
+  bool result = flash_command_queue.send( cmd, FLASH_ACCESS_TIMEOUT);
+  ASSERT( result);
+  return true;
+}
+
+//!< execute sector erase
+bool erase_sector_operation( unsigned sector)
+{
   uint64_t * location = sector == 0 ? (uint64_t *)PAGE_0_HEAD : (uint64_t *)PAGE_1_HEAD;
-  unsigned size = PAGE_SIZE_BYTES / sizeof( uint64_t);
+  unsigned size = PAGE_SIZE_LONG_WORDS;
 
   bool is_erased = true;
   while( size --)
@@ -93,7 +103,7 @@ bool create_virgin_flash_file_system( bool wipe_all = false)
 
 float configuration (EEPROM_PARAMETER_ID id)
 {
-  if (using_permanent_data_file)
+  if ( permanent_data_file.in_use())
     {
       float value;
       // try to read float object size one
@@ -142,94 +152,173 @@ void file_system_page_swap( void)
 
 bool write_EEPROM_value (EEPROM_PARAMETER_ID id, float value)
 {
-  if (using_permanent_data_file)
+  ASSERT (permanent_data_file.in_use());
+  bool success = permanent_data_file.store_data( id, 1, &value);
+  if( not success)
     {
-      bool success = permanent_data_file.store_data( id, 1, &value);
-      if( not success)
-	{
-	  file_system_page_swap();
-	  return not permanent_data_file.store_data( id, 1, &value);
-	}
-      return false; // = OK
+      file_system_page_swap();
+      return not permanent_data_file.store_data( id, 1, &value);
     }
-  else
-    {
-      EEPROM_data_t EEPROM_value;
-      if (EEPROM_convert (id, EEPROM_value, value, WRITE))
-	return true; // error
-
-      return EE_WriteVariableBuffered (id, EEPROM_value.u16);
-    }
+  return false; // = OK
 }
 
 bool read_EEPROM_value (EEPROM_PARAMETER_ID id, float &value)
 {
-  if (using_permanent_data_file)
+  if (permanent_data_file.in_use())
     {
       return not permanent_data_file.retrieve_data( id, 1, &value);
     }
-  else
+  else // legacy version
     {
       uint16_t data;
-      if (HAL_OK != EE_ReadVariableBuffered ( id, (uint16_t*) &data))
+      if (HAL_OK != EE_ReadVariable( id, (uint16_t*) &data))
 	return true;
       return (EEPROM_convert (id, (EEPROM_data_t&) data, value, READ));
     }
 }
 
-bool import_legacy_EEPROM_data( void)
+bool import_raw_EEPROM_data( EEPROM_PARAMETER_ID id, uint32_t * flash_address, unsigned size_words, uint16_t &datum)
 {
-  float value;
+  if( *(uint16_t *)flash_address == 0xEEEE) // dirty flash segment
+    return false;
+
+  uint16_t candidate;
+  bool found = false;
+  while( size_words --)
+    {
+      if( *flash_address == 0xffffffff) // erased flash, end of data range
+	break;
+
+      if( (*flash_address >> 16) == id)
+	{
+	candidate = (uint16_t)(*flash_address);
+	found = true;
+	}
+      ++flash_address;
+    }
+  if( found)
+    {
+      datum = candidate;
+      return true;
+    }
+  else
+    return false;
+}
+
+bool import_single_EEPROM_value( EEPROM_PARAMETER_ID id, uint32_t * flash_address, unsigned size_words, float &value)
+{
+  EEPROM_data_t raw_EEPROM_value;
+
+  if( import_raw_EEPROM_data( id, flash_address, size_words, raw_EEPROM_value.u16))
+    {
+      if( not EEPROM_convert( id, raw_EEPROM_value, value , true))
+	return true;
+    }
+  return false;
+}
+
+bool import_legacy_EEPROM_data( uint32_t * flash_address, unsigned size_words)
+{
   bool result = true;
+  float value;
 
-  value = configuration (SENS_TILT_ROLL);
-  result &= permanent_data_file.store_data (SENS_TILT_ROLL, 1, &value);
+  for( 	const persistent_data_t * parameter = PERSISTENT_DATA;
+	parameter < PERSISTENT_DATA + PERSISTENT_DATA_ENTRIES;
+	++parameter)
+    {
+	if( not import_single_EEPROM_value( parameter->id, flash_address, size_words, value))
+	  value = parameter->default_value;
 
-  value = configuration (SENS_TILT_PITCH);
-  result &= permanent_data_file.store_data (SENS_TILT_PITCH, 1, &value);
-
-  value = configuration (SENS_TILT_YAW);
-  result &= permanent_data_file.store_data (SENS_TILT_YAW, 1, &value);
-
-  value = configuration (PITOT_OFFSET);
-  result &= permanent_data_file.store_data (PITOT_OFFSET, 1, &value);
-
-  value = configuration (PITOT_SPAN);
-  result &= permanent_data_file.store_data (PITOT_SPAN, 1, &value);
-
-  value = configuration (QNH_OFFSET);
-  result &= permanent_data_file.store_data (QNH_OFFSET, 1, &value);
-
-  value = configuration (VARIO_TC);
-  result &= permanent_data_file.store_data (VARIO_TC, 1, &value);
-
-  value = configuration (VARIO_INT_TC);
-  result &= permanent_data_file.store_data (VARIO_INT_TC, 1, &value);
-
-  value = configuration (VARIO_P_TC);
-  result &= permanent_data_file.store_data (VARIO_P_TC, 1, &value);
-
-  value = configuration (WIND_TC);
-  result &= permanent_data_file.store_data (WIND_TC, 1, &value);
-
-  value = configuration (MEAN_WIND_TC);
-  result &= permanent_data_file.store_data (MEAN_WIND_TC, 1, &value);
-
-  value = configuration (HORIZON);
-  result &= permanent_data_file.store_data (HORIZON, 1, &value);
-
-  value = configuration (GNSS_CONFIGURATION);
-  result &= permanent_data_file.store_data (GNSS_CONFIGURATION, 1, &value);
-
-  value = configuration (ANT_BASELENGTH);
-  result &= permanent_data_file.store_data (ANT_BASELENGTH, 1, &value);
-
-  value = configuration (ANT_SLAVE_DOWN);
-  result &= permanent_data_file.store_data (ANT_SLAVE_DOWN, 1, &value);
-
-  value = configuration (ANT_SLAVE_RIGHT);
-  result &= permanent_data_file.store_data (ANT_SLAVE_RIGHT, 1, &value);
-
+	result &= permanent_data_file.store_data ( parameter->id, 1, &value);
+    }
   return result;
 }
 
+void recover_and_initialize_flash( void)
+{
+  if( *(uint16_t *)0x080F8000 == 0 && *(int64_t *)0x080E0000 == -1) // old flash layout
+    {
+      // prepare page 0 for data import
+      erase_sector( 0);
+      permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_BYTES);
+      bool success = import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
+      ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
+      erase_sector( 1); // now we clean the upper sector from the old data
+      return; // job done
+    }
+  if( *(uint16_t *)PAGE_0_HEAD == 0) // new flash layout, using page 0
+    {
+      erase_sector( 1);
+      permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_0_HEAD+PAGE_SIZE_BYTES);
+      bool success = import_legacy_EEPROM_data( PAGE_1_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
+      ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
+      erase_sector( 0); // now we clean the upper sector from the old data
+      return; // job done
+    }
+  if( *(uint16_t *)PAGE_1_HEAD == 0) // new flash layout, using page 0
+    {
+      erase_sector( 0);
+      permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_BYTES);
+      bool success = import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
+      ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
+      erase_sector( 1); // now we clean the upper sector from the old data
+      return; // job done
+    }
+
+  // we did not find any legacy data and no valid new file system
+  // so we clean the complete set of sectors and start using sector 0
+  create_virgin_flash_file_system( true);
+}
+
+static void EEPROM_writing_runnable( void *)
+{
+  flash_write_order order;
+  while( true)
+    {
+      flash_command_queue.receive( order, INFINITE_WAIT);
+
+      if( order.source == 0 && order.n_words == PAGE_SIZE_WORDS) // erase commmand
+	{
+	  if( order.dest == PAGE_0_HEAD)
+	    erase_sector_operation( 0);
+	  else if( order.dest == PAGE_1_HEAD)
+	    erase_sector_operation( 1);
+	  return;
+	}
+
+      HAL_StatusTypeDef status;
+      status = HAL_FLASH_Unlock();
+      ASSERT(HAL_OK == status);
+
+      while( order.n_words --)
+	{
+	  status = HAL_FLASH_Program( TYPEPROGRAM_WORD, (uint32_t)(order.dest), *(order.source) );
+	  ASSERT( status == HAL_OK);
+	  ++order.dest;
+	  ++order.source;
+	}
+
+      status = HAL_FLASH_Lock();
+      ASSERT(HAL_OK == status);
+    }
+}
+
+#define STACKSIZE 256
+static uint32_t __ALIGNED(STACKSIZE*sizeof(uint32_t)) stack_buffer[STACKSIZE];
+
+static ROM TaskParameters_t p =
+  {
+    EEPROM_writing_runnable,
+    "EEPROM",
+    STACKSIZE,
+    0,
+    EEPROM_WRITER_PRIORITY,
+    stack_buffer,
+    {
+      { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
+      { PAGE_0_HEAD, PAGE_SIZE_BYTES, portMPU_REGION_READ_WRITE },
+      { 0, 0, 0 }
+    }
+  };
+
+static RestrictedTask EEPROM_accessor( p);

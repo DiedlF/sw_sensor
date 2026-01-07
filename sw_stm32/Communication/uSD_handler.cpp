@@ -41,6 +41,7 @@
 #include "compass_calibrator_3D.h"
 #endif
 #include "SHA256.h"
+#include "EEPROM_data_file_implementation.h"
 
 ROM uint8_t SHA_INITIALIZATION[] = "presently a well-known string";
 
@@ -560,8 +561,11 @@ read_software_update (void)
 //!< this executable takes care of all uSD reading and writing
 void uSD_handler_runnable (void*)
 {
+  recover_and_initialize_flash();
+
 restart:
-  // ...just to be sure ...
+
+// ...just to be sure ...
   ensure_EEPROM_parameter_integrity();
 
   HAL_SD_DeInit (&hsd);
@@ -663,8 +667,6 @@ restart:
       delay (100);
     }
 
-  uint32_t last_eeprom_write_tick = EE_GetLastChangeTickTime();
-
   // repeat writing logfiles for all successive flights
   while(true)
     {
@@ -750,19 +752,7 @@ restart:
 		  f_close(&the_file);
 
 		  delay(100); // just to be sure everything is written
-
-		  /* Check if EEPROM data changed recently */
-		  if (EE_GetLastChangeTickTime() != last_eeprom_write_tick)
-		    {
-		      /* Wait at least three seconds after a data change has been observed before creating a new dump file.
-		       * This prevents that an identical filename is used again. */
-		      if (xTaskGetTickCount() > (last_eeprom_write_tick + (3 * configTICK_RATE_HZ)))
-			{
-			    last_eeprom_write_tick = EE_GetLastChangeTickTime();
-			}
-		    }
-
-		  break; /* break inner while loop and start again, which will start a new eeprom dump / logfile */
+		  break; /* break inner while loop and start again, which will start a new set of logfiles */
 		}
 	    }
 	}

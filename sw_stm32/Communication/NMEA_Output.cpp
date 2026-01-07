@@ -43,7 +43,7 @@ extern Mutex GNSS_data_guard;
 
 static void NMEA_runnable (void* data)
 {
-  delay( NMEA_START_DELAY);
+  suspend(); // and wait until the communicator wakes us up
 
   bool horizon_available = configuration( HORIZON);
 
