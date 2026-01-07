@@ -123,10 +123,11 @@ void EE_task_runnable(void *)
    * PERSISTENT_DATA_ENTRIES but this value is not available for a define. NB_OF_VAR is slightly to large because
    * some IDs in EEPROM_PARAMETER_ID are skipped but easier to implement. */
   ASSERT(PERSISTENT_DATA_ENTRIES < NB_OF_VAR);
-  for(unsigned int i = 0; i < PERSISTENT_DATA_ENTRIES; i++){
+  for(unsigned int i = 0; i < PERSISTENT_DATA_ENTRIES; i++)
+    {
       ASSERT(PERSISTENT_DATA[i].id < 0xFFFF); // Only IDs < 0xFFFF are allowed.
       VirtAddVarTab[i] = PERSISTENT_DATA[i].id;
-  }
+    }
 
   /* Check and read data if there is some in the flash from a old version which can be recovered.*/
   bool recovery_required = EE_recover_from_old_layout();
@@ -159,15 +160,17 @@ void EE_task_runnable(void *)
          {
 	   ASSERT(VirtAddVarTab[varIdx] < 0xFFFF); // Only ids < 0xFFFF are allowed.
            status = EE_ReadVariable(VirtAddVarTab[varIdx], &data);
-           if (status == 0){
+           if (status == 0)
+             {
                /*variable found*/
                VirtDatVarTab[varIdx] = data;
                VirtExistsVarTab[varIdx] = true;
-           }
-           else{
+             }
+           else
+             {
                /*variable not found in flash*/
                VirtExistsVarTab[varIdx] = false;
-           }
+             }
          }
 
   lastWriteTickTime = xTaskGetTickCount(); /* Initialize last write tick time with read out tick time */
