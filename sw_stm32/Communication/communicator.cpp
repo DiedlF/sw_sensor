@@ -178,9 +178,6 @@ void communicator_runnable (void*)
   NMEA_task.resume();
 
   unsigned synchronizer_10Hz = 10; // re-sampling 100Hz -> 10Hz
-
-  communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
-
   unsigned GNSS_watchdog = 0;
 
   // this is the MAIN data acquisition and processing loop
@@ -361,7 +358,7 @@ static uint32_t __ALIGNED(STACKSIZE*sizeof(uint32_t)) stack_buffer[STACKSIZE];
 static ROM TaskParameters_t p =
   { communicator_runnable, "COM",
   STACKSIZE, 0,
-  COMMUNICATOR_START_PRIORITY, stack_buffer,
+  COMMUNICATOR_PRIORITY, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
       { 0, 0, 0 },
