@@ -15,7 +15,7 @@
 #define PAGE_SIZE_LONG_WORDS 0x04000
 
 COMMON Queue <flash_write_order> flash_command_queue( 3);
-COMMON Semaphore flash_isr_to_task;
+COMMON Semaphore flash_isr_to_task( 1, 0, "FLASH_ISR");
 
 COMMON EEPROM_file_system permanent_data_file;
 extern Queue <flash_write_order> flash_command_queue;
@@ -316,7 +316,7 @@ static void EEPROM_writing_runnable( void *)
     }
 }
 
-#define STACKSIZE 256
+#define STACKSIZE 128
 static uint32_t __ALIGNED(STACKSIZE*sizeof(uint32_t)) stack_buffer[STACKSIZE];
 
 static ROM TaskParameters_t p =
@@ -339,6 +339,9 @@ static RestrictedTask EEPROM_accessor( p);
 extern "C" void FLASH_IRQHandler( void)
 {
   HAL_FLASH_IRQHandler();
-  flash_isr_to_task.signal_from_ISR();
 }
 
+extern "C" void HAL_FLASH_EndOfOperationCallback(uint32_t ReturnValue)
+{
+  flash_isr_to_task.signal_from_ISR();
+}
