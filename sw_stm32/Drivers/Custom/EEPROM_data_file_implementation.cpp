@@ -238,7 +238,7 @@ void recover_and_initialize_flash( void)
       delay( 1000);
       return; // job done
     }
-  if( *(uint16_t *)PAGE_1_HEAD == 0) // new flash layout, using page 0
+  if( *(uint16_t *)PAGE_1_HEAD == 0) // new flash layout, using page 1
     {
       erase_sector( 0);
       delay( 1000);
