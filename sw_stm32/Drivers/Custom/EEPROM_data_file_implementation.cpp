@@ -16,6 +16,8 @@
 
 COMMON Queue <flash_write_order> flash_command_queue( 3);
 COMMON Semaphore flash_isr_to_task( 1, 0, "FLASH_ISR");
+COMMON Mutex EEPROM_lock;
+COMMON Mutex_Wrapper_Type my_mutex;
 
 COMMON EEPROM_file_system permanent_data_file;
 extern Queue <flash_write_order> flash_command_queue;
