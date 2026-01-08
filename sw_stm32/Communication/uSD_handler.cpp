@@ -41,9 +41,9 @@
 #include "compass_calibrator_3D.h"
 #endif
 #include "SHA256.h"
-#include "EEPROM_data_file_implementation.h""
+#include "EEPROM_data_file_implementation.h"
+#include "persistent_data_file.h"
 
-#include "persistent_data_file.h""
 extern EEPROM_file_system permanent_data_file;
 
 ROM uint8_t SHA_INITIALIZATION[] = "presently a well-known string";

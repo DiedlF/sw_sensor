@@ -257,22 +257,37 @@ void recover_and_initialize_flash( void)
       bool success = permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       if( success)
 	return;
+
+      // make a page swap and copy all clean records
+      erase_sector( 0);
+      EEPROM_file_system new_data_copy;
+      new_data_copy.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+
+      // try data recovery
+      new_data_copy.import_all_data( permanent_data_file);
+
+      // ... and change over
+      success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      ASSERT( success); // now it must be OK !
     }
   else if( *(int32_t *)PAGE_0_HEAD != -1) // check for file system on page 0
     {
       bool success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
       if( success)
 	return;
-    }
 
-  // we did not find any legacy data and no valid new file system
-  // so we clean the complete set of sectors and start using sector 0
-  erase_sector( 0);
-  delay( 1000);
-  erase_sector( 1);
-  delay( 1000);
-  bool success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
-  ASSERT( success);
+      // make a page swap and copy all clean records
+      erase_sector( 1);
+      EEPROM_file_system new_data_copy;
+      new_data_copy.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
+
+      // try data recovery
+      new_data_copy.import_all_data(permanent_data_file);
+
+      // ... and change over
+      success = permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
+      ASSERT( success); // now it must be OK !
+    }
 }
 
 static void EEPROM_writing_runnable( void *)
