@@ -115,7 +115,7 @@ bool file_system_page_swap( void)
       new_data_file.import_all_data(permanent_data_file);
       result = erase_sector( 1);
       ASSERT( result);
-      return permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      return permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
      }
   else
     {
@@ -125,7 +125,7 @@ bool file_system_page_swap( void)
       new_data_file.import_all_data(permanent_data_file);
       result = erase_sector( 0);
       ASSERT( result);
-      return permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
+      return permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
     }
 }
 
@@ -220,7 +220,7 @@ void recover_and_initialize_flash( void)
       // prepare page 0 for data import
       erase_sector( 0);
       delay( 1000);
-      bool success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      bool success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success);
       success = import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
@@ -232,7 +232,7 @@ void recover_and_initialize_flash( void)
     {
       erase_sector( 1);
       delay( 1000);
-      bool success = permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
+      bool success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success);
       success = import_legacy_EEPROM_data( PAGE_1_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
@@ -244,7 +244,7 @@ void recover_and_initialize_flash( void)
     {
       erase_sector( 0);
       delay( 1000);
-      bool success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      bool success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
       success = import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
       erase_sector( 1); // now we clean the upper sector from the old data
@@ -254,38 +254,38 @@ void recover_and_initialize_flash( void)
 
   if( *(int32_t *)PAGE_1_HEAD != -1) // check for file system on page 1
     {
-      bool success = permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
+      bool success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       if( success)
 	return;
 
       // make a page swap and copy all clean records
       erase_sector( 0);
       EEPROM_file_system new_data_copy;
-      new_data_copy.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      new_data_copy.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
 
       // try data recovery
       new_data_copy.import_all_data( permanent_data_file);
 
       // ... and change over
-      success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success); // now it must be OK !
     }
   else if( *(int32_t *)PAGE_0_HEAD != -1) // check for file system on page 0
     {
-      bool success = permanent_data_file.set_memory_area( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      bool success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
       if( success)
 	return;
 
       // make a page swap and copy all clean records
       erase_sector( 1);
       EEPROM_file_system new_data_copy;
-      new_data_copy.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
+      new_data_copy.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
 
       // try data recovery
       new_data_copy.import_all_data(permanent_data_file);
 
       // ... and change over
-      success = permanent_data_file.set_memory_area( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
+      success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success); // now it must be OK !
     }
 }
