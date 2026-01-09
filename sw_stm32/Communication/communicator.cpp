@@ -226,19 +226,19 @@ void communicator_runnable (void*)
 	      vector_average_organizer.source=&(output_data.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_left);
 	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT;
+	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case MEASURE_CALIB_RIGHT:
 	      vector_average_organizer.source=&(output_data.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_right);
 	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT;
+	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case MEASURE_CALIB_LEVEL:
 	      vector_average_organizer.source=&(output_data.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_level);
 	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT;
+	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case SET_SENSOR_ROTATION:
 
@@ -258,7 +258,7 @@ void communicator_runnable (void*)
 	      vector_average_organizer.source=&(output_data.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_level);
 	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT;
+	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
 	      fine_tune_sensor_attitude = true;
 	      break;
 
@@ -280,7 +280,7 @@ void communicator_runnable (void*)
 	  // if measurement complete now
 	  if( vector_average_organizer.counter == 0)
 	    {
-	      float inverse_count = 1.0f / VECTOR_AVERAGE_COUNT;
+	      float inverse_count = 1.0f / VECTOR_AVERAGE_COUNT_SETUP;
 	      *(vector_average_organizer.destination) = vector_average_organizer.sum * inverse_count;
 
 	      // in this case we do not wait for another command but re-calculate immediately
