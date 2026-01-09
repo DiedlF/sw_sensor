@@ -228,7 +228,7 @@ void recover_and_initialize_flash( void)
       delay( 1000);
       return; // job done
     }
-  if( *(uint16_t *)PAGE_0_HEAD == 0) // new flash layout, using page 0
+  else if( *(uint16_t *)PAGE_0_HEAD == 0) // new flash layout, using page 0
     {
       erase_sector( 1);
       delay( 1000);
@@ -240,7 +240,7 @@ void recover_and_initialize_flash( void)
       delay( 1000);
       return; // job done
     }
-  if( *(uint16_t *)PAGE_1_HEAD == 0) // new flash layout, using page 1
+  else if( *(uint16_t *)PAGE_1_HEAD == 0) // new flash layout, using page 1
     {
       erase_sector( 0);
       delay( 1000);
@@ -252,7 +252,7 @@ void recover_and_initialize_flash( void)
       return; // job done
     }
 
-  if( *(int32_t *)PAGE_1_HEAD != -1) // check for file system on page 1
+  else if( *(int32_t *)PAGE_1_HEAD != -1) // check for file system on page 1
     {
       bool success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       if( success)
@@ -278,7 +278,7 @@ void recover_and_initialize_flash( void)
 
       // make a page swap and copy all clean records
       erase_sector( 1);
-      EEPROM_file_system new_data_copy;
+        EEPROM_file_system new_data_copy;
       new_data_copy.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
 
       // try data recovery
@@ -287,6 +287,12 @@ void recover_and_initialize_flash( void)
       // ... and change over
       success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success); // now it must be OK !
+    }
+  else // virgin start, there is nothing within any EEPROM emulation section
+    {
+      erase_sector( 0);
+      erase_sector( 1);
+      (void) permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
     }
 }
 
