@@ -280,7 +280,7 @@ static ROM TaskParameters_t p =
       0,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { 0, 0, 0 },
+      { (void *)0x080C0000, 0x00040000, portMPU_REGION_READ_ONLY }, // EEPROM
       { 0, 0, 0 }
     }
   };
