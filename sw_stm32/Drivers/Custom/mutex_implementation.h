@@ -2,20 +2,35 @@
 #define MUTEX_IMPLEMENTATION_H_
 
 #include "FreeRTOS_wrapper.h"
+#include "my_assert.h"
 
 extern Mutex EEPROM_lock;
 
 class Mutex_Wrapper_Type
 {
 public:
+  Mutex_Wrapper_Type( void)
+  : lock_count(0)
+  {}
+
   void lock( void)
   {
-    EEPROM_lock.lock(10);
+    bool success;
+    if( lock_count == 0)
+      success = EEPROM_lock.lock(10);
+    ASSERT( success);
+    ++lock_count;
   }
+
   void unlock( void)
   {
-    EEPROM_lock.release();
+    ASSERT( lock_count > 0);
+        --lock_count;
+    if( lock_count == 0)
+      EEPROM_lock.release();
   }
+private:
+  unsigned lock_count;
 };
 
 #include "scoped_lock.h"
