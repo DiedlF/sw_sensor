@@ -26,6 +26,7 @@ void FLASH_write( uint32_t * dest, uint32_t * source, unsigned n_words)
   flash_write_order cmd;
   bool result;
 
+#if 0 // asynchronous write
   while( n_words --)
     {
     cmd.dest=dest++;
@@ -33,6 +34,22 @@ void FLASH_write( uint32_t * dest, uint32_t * source, unsigned n_words)
     result = flash_command_queue.send( cmd, FLASH_ACCESS_TIMEOUT);
     ASSERT( result);
     }
+#else // synchronous write, interrupt-synchronized
+  HAL_StatusTypeDef status;
+  status = HAL_FLASH_Unlock();
+  ASSERT(HAL_OK == status);
+
+  while( n_words --)
+    {
+      status = HAL_FLASH_Program_IT( TYPEPROGRAM_WORD, (uint32_t)dest, *source++);
+      ASSERT( status == HAL_OK);
+      bool no_timeout = flash_isr_to_task.wait( INFINITE_WAIT);
+      ASSERT( no_timeout);
+    }
+
+  status = HAL_FLASH_Lock();
+  ASSERT(HAL_OK == status);
+#endif
 }
 
 //!< test interface for reading
