@@ -1,7 +1,7 @@
 #ifndef CUSTOM_EEPROM_DATA_FILE_IMPLEMENTATION_H_
 #define CUSTOM_EEPROM_DATA_FILE_IMPLEMENTATION_H_
 
-#include "stdint.h"
+#include "persistent_data_file.h"
 
 typedef struct
 {
@@ -10,5 +10,7 @@ typedef struct
 } flash_write_order;
 
 void recover_and_initialize_flash( void);
+bool read_blob( EEPROM_file_system_node::ID_t id, unsigned length_in_words, void * data);
+bool write_blob( EEPROM_file_system_node::ID_t id, unsigned length_in_words, const void * data);
 
 #endif /* CUSTOM_EEPROM_DATA_FILE_IMPLEMENTATION_H_ */

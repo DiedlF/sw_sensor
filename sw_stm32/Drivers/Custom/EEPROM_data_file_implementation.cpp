@@ -3,7 +3,6 @@
 #include "common.h"
 #include "FreeRTOS_wrapper.h"
 #include "system_configuration.h"
-#include "persistent_data_file.h"
 #include "my_assert.h"
 #include "EEPROM_data_file_implementation.h"
 #include "stm32f4xx_hal.h"
@@ -34,6 +33,23 @@ void FLASH_write( uint32_t * dest, uint32_t * source, unsigned n_words)
     result = flash_command_queue.send( cmd, FLASH_ACCESS_TIMEOUT);
     ASSERT( result);
     }
+}
+
+//!< test interface for reading
+bool read_blob( EEPROM_file_system_node::ID_t id, unsigned length_in_words, void * data)
+{
+  if( not permanent_data_file.is_consistent())
+    return false;
+
+  return permanent_data_file.retrieve_data ( id, length_in_words, (uint32_t *)data);
+}
+//!< test interface for writing
+bool write_blob( EEPROM_file_system_node::ID_t id, unsigned length_in_words, const void * data)
+{
+  if( not permanent_data_file.is_consistent())
+    return false;
+
+  return permanent_data_file.store_data ( id, length_in_words, (uint32_t *)data);
 }
 
 //!< order sector erase
@@ -196,7 +212,7 @@ bool import_single_EEPROM_value( EEPROM_PARAMETER_ID id, uint32_t * flash_addres
   return false;
 }
 
-bool import_legacy_EEPROM_data( uint32_t * flash_address, unsigned size_words)
+static bool import_legacy_EEPROM_data( uint32_t * flash_address, unsigned size_words)
 {
   bool result = true;
   float value;
