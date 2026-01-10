@@ -72,6 +72,7 @@ bool write_blob( EEPROM_file_system_node::ID_t id, unsigned length_in_words, con
 //!< order sector erase
 bool erase_sector( unsigned sector)
 {
+  LOCK_SECTION();
   if( (sector != 0) && (sector != 1))
     return false;
 
@@ -94,6 +95,9 @@ bool erase_sector( unsigned sector)
   cmd.dest = (uint32_t *)sector;
   bool result = flash_command_queue.send( cmd, FLASH_ERASE_TIMEOUT);
   ASSERT( result);
+
+  delay( MAXIMUM_PAGE_ERASE_TIME); // wait longest possible time until ERASE done
+
   return true;
 }
 
