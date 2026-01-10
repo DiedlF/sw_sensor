@@ -43,6 +43,7 @@
 #include "SHA256.h"
 #include "EEPROM_data_file_implementation.h"
 #include "persistent_data_file.h"
+#include "system_state.h"
 
 extern EEPROM_file_system permanent_data_file;
 
@@ -69,13 +70,13 @@ COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE + RESERVE];
 //!< format date and time from sat fix data
 char * format_date_time( char * target)
 {
-  format_2_digits( target, output_data.c.year);
-  format_2_digits( target, output_data.c.month);
-  format_2_digits( target, output_data.c.day);
+  format_2_digits( target, output_data.obs.c.year);
+  format_2_digits( target, output_data.obs.c.month);
+  format_2_digits( target, output_data.obs.c.day);
   *target ++ = '_';
-  format_2_digits( target, output_data.c.hour);
-  format_2_digits( target, output_data.c.minute);
-  format_2_digits( target, output_data.c.second);
+  format_2_digits( target, output_data.obs.c.hour);
+  format_2_digits( target, output_data.obs.c.minute);
+  format_2_digits( target, output_data.obs.c.second);
   *target=0;
   return target;
 }
@@ -651,10 +652,6 @@ restart:
   dump_sensor_readings = (fresult == FR_OK);
   f_close( &the_file); // as this is just a dummy file
 
-#if ACTIVATE_MAGNETIC_3D_MECHANIM
-  read_magnetic_3D_data(); // read 3D data if existent
-#endif
-
   FILINFO filinfo;
   fresult = f_stat("logger", &filinfo);
   if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)==0))
@@ -668,7 +665,7 @@ restart:
   char out_filename[30];
 
   // wait until a GNSS timestamp is available.
-  while (output_data.c.sat_fix_type == 0)
+  while (output_data.obs.c.sat_fix_type == 0)
     {
       if( crashfile && ! user_initiated_reset)
 	  write_crash_dump();
@@ -678,6 +675,13 @@ restart:
   // repeat writing logfiles for all successive flights
   while(true)
     {
+      // here when opening a new output file we decide if the external magnetometer is active
+      // if this state changes while we are logging there will be no severe problem
+      unsigned recorder_data_size =
+	  (system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
+	  ? sizeof( observations_type)
+	  : sizeof( measurement_data_t) + sizeof( coordinates_t);
+
       UINT writtenBytes = 0;
       uint8_t *buf_ptr = mem_buffer;
 
@@ -692,7 +696,7 @@ restart:
 
       *next++ = '.';
       *next++  = 'f';
-      format_2_digits( next, sizeof(observations_type) / sizeof(float));
+      format_2_digits( next, recorder_data_size / sizeof(float));
 
       fresult = f_open (&the_file, out_filename, FA_CREATE_ALWAYS | FA_WRITE);
       if (fresult != FR_OK)
@@ -719,8 +723,8 @@ restart:
 	  if( crashfile && ! user_initiated_reset)
 	    write_crash_dump();
 
-	  memcpy (buf_ptr, (uint8_t*) &output_data.m, sizeof(observations_type));
-	  buf_ptr += sizeof(observations_type);
+	  memcpy (buf_ptr, (uint8_t*) &(output_data.obs), recorder_data_size);
+	  buf_ptr += recorder_data_size;
 
 	  if (buf_ptr < mem_buffer + MEM_BUFSIZE)
 	    continue; // buffer only filled partially

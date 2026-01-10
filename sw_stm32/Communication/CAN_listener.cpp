@@ -30,8 +30,7 @@
 #include "CAN_distributor.h"
 #include "NMEA_format.h"
 #include "watchdog_handler.h"
-
-COMMON bool external_magnetometer_available;
+#include "system_state.h"
 
 #define CAN_Id_Send_Config_Value 0x12f
 
@@ -177,24 +176,22 @@ CAN_listener_task_runnable (void*)
     {
 
 #if WITH_EXTERNAL_MAGNETOMETER
-      extern bool external_magnetometer_available;
-
       bool rx_ed = can_packet_q.receive(p, 100);
       if( rx_ed)
 	{
 	if ( (p.id == 0x160) && (p.dlc == 6))
 	  {
-	    output_data.external_magnetometer_reading[0] = (float32_t)(p.data_sh[0]) * 0.01333333f; // 1 uTesla / 75LSB
-	    output_data.external_magnetometer_reading[1] = (float32_t)(p.data_sh[1]) * 0.01333333f;
-	    output_data.external_magnetometer_reading[2] = (float32_t)(p.data_sh[2]) * 0.01333333f;
-	    external_magnetometer_available = true;
+	    output_data.obs.external_magnetometer_reading[0] = (float32_t)(p.data_sh[0]) * 0.01333333f; // 1 uTesla / 75LSB
+	    output_data.obs.external_magnetometer_reading[1] = (float32_t)(p.data_sh[1]) * 0.01333333f;
+	    output_data.obs.external_magnetometer_reading[2] = (float32_t)(p.data_sh[2]) * 0.01333333f;
+	    update_system_state_set( EXTERNAL_MAGNETOMETER_AVAILABLE);
 	    magnetometer_last_heard = xTaskGetTickCount();
 	  }
 	}
       else
 	{
 	  if( xTaskGetTickCount() - magnetometer_last_heard > 100)
-	    external_magnetometer_available = false;
+	    update_system_state_clear( EXTERNAL_MAGNETOMETER_AVAILABLE);
 	}
 
 #else

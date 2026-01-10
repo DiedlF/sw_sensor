@@ -45,7 +45,7 @@ extern "C" void sync_logger (void);
 COMMON Semaphore setup_file_handling_completed(1,0,(char *)"SETUP");
 
 COMMON output_data_t __ALIGNED(1024) output_data = { 0 };
-COMMON GNSS_type GNSS (output_data.c);
+COMMON GNSS_type GNSS (output_data.obs.c);
 
 COMMON Queue < communicator_command_t> communicator_command_queue(2);
 
@@ -126,7 +126,7 @@ void communicator_runnable (void*)
 	while (!GNSS_new_data_ready) // lousy spin lock !
 	  delay (100);
 
-	organizer.update_GNSS_data (output_data.c);
+	organizer.update_GNSS_data (output_data.obs.c);
 	update_system_state_set( GNSS_AVAILABLE);
 	GNSS_new_data_ready = false;
       }
@@ -147,7 +147,7 @@ void communicator_runnable (void*)
 	while (!GNSS_new_data_ready) // lousy spin lock !
 	  delay (100);
 
-	organizer.update_GNSS_data (output_data.c);
+	organizer.update_GNSS_data (output_data.obs.c);
 	update_system_state_set( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
 	GNSS_new_data_ready = false;
       }
@@ -161,7 +161,7 @@ void communicator_runnable (void*)
 	while (!GNSS_new_data_ready) // lousy spin lock !
 	  delay (100);
 
-	organizer.update_GNSS_data (output_data.c);
+	organizer.update_GNSS_data (output_data.obs.c);
 	update_system_state_set( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
 	GNSS_new_data_ready = false;
       }
@@ -188,16 +188,16 @@ void communicator_runnable (void*)
 
       if (GNSS_new_data_ready) // triggered after 75ms or 200ms, GNSS-dependent
 	{
-	  organizer.update_GNSS_data (output_data.c);
+	  organizer.update_GNSS_data (output_data.obs.c);
 	  GNSS_new_data_ready = false;
 	  update_system_state_set( GNSS_AVAILABLE);
 	  if( GNSS_configuration > GNSS_M9N)
 	    update_system_state_set( D_GNSS_AVAILABLE);
 
-	  if( (have_first_GNSS_fix == false) && ((output_data.c.sat_fix_type & SAT_FIX) != 0))
+	  if( (have_first_GNSS_fix == false) && ((output_data.obs.c.sat_fix_type & SAT_FIX) != 0))
 	    {
 	      have_first_GNSS_fix = true;
-	      organizer.update_magnetic_induction_data( output_data.c.latitude, output_data.c.longitude);
+	      organizer.update_magnetic_induction_data( output_data.obs.c.latitude, output_data.obs.c.longitude);
 	    }
 
 	  GNSS_watchdog=0;
@@ -208,12 +208,12 @@ void communicator_runnable (void*)
 	      ++GNSS_watchdog;
 	  else // we got no data form GNSS receiver
 	    {
-	      output_data.c.sat_fix_type = SAT_FIX_NONE;
+	      output_data.obs.c.sat_fix_type = SAT_FIX_NONE;
 	      update_system_state_clear( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
 	    }
 	}
 
-      organizer.on_new_pressure_data( output_data.m.static_pressure, output_data.m.pitot_pressure);
+      organizer.on_new_pressure_data( output_data.obs.m.static_pressure, output_data.obs.m.pitot_pressure);
       organizer.update_at_100_Hz(output_data);
 
       // service external commands if any
@@ -223,19 +223,19 @@ void communicator_runnable (void*)
 	  switch( command)
 	  {
 	    case MEASURE_CALIB_LEFT:
-	      vector_average_organizer.source=&(output_data.m.acc);
+	      vector_average_organizer.source=&(output_data.obs.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_left);
 	      vector_average_organizer.destination->zero();
 	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case MEASURE_CALIB_RIGHT:
-	      vector_average_organizer.source=&(output_data.m.acc);
+	      vector_average_organizer.source=&(output_data.obs.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_right);
 	      vector_average_organizer.destination->zero();
 	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case MEASURE_CALIB_LEVEL:
-	      vector_average_organizer.source=&(output_data.m.acc);
+	      vector_average_organizer.source=&(output_data.obs.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_level);
 	      vector_average_organizer.destination->zero();
 	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
@@ -255,7 +255,7 @@ void communicator_runnable (void*)
 	      report_horizon_avalability();
 	      break;
 	    case FINE_TUNE_CALIB:  // names "straight flight" in Larus Display Menu
-	      vector_average_organizer.source=&(output_data.m.acc);
+	      vector_average_organizer.source=&(output_data.obs.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_level);
 	      vector_average_organizer.destination->zero();
 	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
@@ -314,7 +314,7 @@ void communicator_runnable (void*)
       {
 	case GNSS_F9P_F9H:
 	case GNSS_F9P_F9P:
-	  switch(output_data.c.sat_fix_type)
+	  switch(output_data.obs.c.sat_fix_type)
 	  {
 	    case SAT_FIX:
 		  HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
@@ -330,7 +330,7 @@ void communicator_runnable (void*)
 	  }
 	  break;
 	case GNSS_M9N:
-	  if(output_data.c.sat_fix_type == SAT_FIX)
+	  if(output_data.obs.c.sat_fix_type == SAT_FIX)
 	    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
 	        ((GNSS_count & 0xe0) == 0xe0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
 	  else

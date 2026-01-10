@@ -46,11 +46,11 @@ statistics stat;
 
 void decimate_sensor_observations( const output_data_t &output_data)
 {
-  pabs_sum += (uint64_t)(output_data.m.static_pressure);
+  pabs_sum += (uint64_t)(output_data.obs.m.static_pressure);
   ++samples;
-  noise_energy += SQR( (uint64_t)(output_data.m.static_pressure + 0.5f) - pabs_sum / samples);
+  noise_energy += SQR( (uint64_t)(output_data.obs.m.static_pressure + 0.5f) - pabs_sum / samples);
   heading_decimator.respond( output_data.euler.yaw);
-  voltage_decimator.respond( output_data.m.supply_voltage);
+  voltage_decimator.respond( output_data.obs.m.supply_voltage);
   inclination_decimator.respond( ATAN2( output_data.nav_induction_gnss[DOWN], output_data.nav_induction_gnss[NORTH]));
 }
 
@@ -85,8 +85,8 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
   squaresum=0.0f;
   for( unsigned i=0; i<3; ++i)
     {
-      squaresum += SQR( output_data.m.acc[i]);
-      to_ascii_n_decimals( output_data.m.acc[i], 2, s);
+      squaresum += SQR( output_data.obs.m.acc[i]);
+      to_ascii_n_decimals( output_data.obs.m.acc[i], 2, s);
       *s++ = ' ';
     }
   to_ascii_n_decimals( SQRT( squaresum), 2, s);
@@ -96,7 +96,7 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
   squaresum=0.0f;
   for( unsigned i=0; i<3; ++i)
     {
-      to_ascii_n_decimals( RAD_2_DEGREES * output_data.m.gyro[i], 1, s);
+      to_ascii_n_decimals( RAD_2_DEGREES * output_data.obs.m.gyro[i], 1, s);
       *s++ = ' ';
     }
   newline( s);
@@ -105,15 +105,15 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
   squaresum=0.0f;
   for( unsigned i=0; i<3; ++i)
     {
-      squaresum += SQR( output_data.m.mag[i]);
-      to_ascii_n_decimals( output_data.m.mag[i], 2, s);
+      squaresum += SQR( output_data.obs.m.mag[i]);
+      to_ascii_n_decimals( output_data.obs.m.mag[i], 2, s);
       *s++ = ' ';
     }
   to_ascii_n_decimals( SQRT( squaresum), 2, s);
   newline( s);
 
   append_string( s, "P_pitot / Pa ");
-  to_ascii_n_decimals( output_data.m.pitot_pressure, 2, s);
+  to_ascii_n_decimals( output_data.obs.m.pitot_pressure, 2, s);
   newline( s);
 
   statistics present_stat = get_sensor_data();
@@ -132,7 +132,7 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
   newline( s);
 
   append_string( s, "Sensor Temp = ");
-  to_ascii_n_decimals( output_data.m.static_sensor_temperature, 2, s);
+  to_ascii_n_decimals( output_data.obs.m.static_sensor_temperature, 2, s);
   newline( s);
 
   append_string( s, "U_batt = ");
@@ -140,17 +140,17 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
   newline( s);
 
   append_string( s, "Sats: ");
-  format_integer( s, output_data.c.SATS_number);
+  format_integer( s, output_data.obs.c.SATS_number);
 
   append_string( s, " Speed-Accuracy = ");
-  to_ascii_n_decimals( output_data.c.speed_acc, 2, s);
+  to_ascii_n_decimals( output_data.obs.c.speed_acc, 2, s);
 
   append_string( s, "m/s, GNSS time: ");
-  format_2_digits( s, output_data.c.hour);
+  format_2_digits( s, output_data.obs.c.hour);
   *s ++ = ':';
-  format_2_digits( s, output_data.c.minute);
+  format_2_digits( s, output_data.obs.c.minute);
   *s ++ = ':';
-  format_2_digits( s, output_data.c.second);
+  format_2_digits( s, output_data.obs.c.second);
   newline( s);
 
   append_string( s, "Induction NED: ");
@@ -178,15 +178,15 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
   *s++ = '%';
   newline( s);
 
-  if( output_data.c.sat_fix_type == (SAT_FIX | SAT_HEADING))
+  if( output_data.obs.c.sat_fix_type == (SAT_FIX | SAT_HEADING))
     {
-      float baselength = output_data.c.relPosNED.abs();
+      float baselength = output_data.obs.c.relPosNED.abs();
       append_string( s, "D-GNSS: BaseLength: ");
       to_ascii_n_decimals( baselength, 2, s);
       append_string( s, "m  SlaveDown = ");
-      to_ascii_n_decimals( output_data.c.relPosNED[DOWN], 2, s);
+      to_ascii_n_decimals( output_data.obs.c.relPosNED[DOWN], 2, s);
       append_string( s, "m D-GNSS-Heading= ");
-      to_ascii_n_decimals( RAD_2_DEGREES * output_data.c.relPosHeading, 1, s);
+      to_ascii_n_decimals( RAD_2_DEGREES * output_data.obs.c.relPosHeading, 1, s);
     }
   else
     append_string( s, "No D-GNSS-fix");
