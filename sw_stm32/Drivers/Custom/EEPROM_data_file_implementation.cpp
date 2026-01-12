@@ -201,11 +201,11 @@ bool import_raw_EEPROM_data( EEPROM_PARAMETER_ID id, uint32_t * flash_address, u
 	candidate = (uint16_t)(*flash_address);
 	found = true;
 	}
-      ++flash_address;
+      ++flash_address; // continue to search for newer data
     }
   if( found)
     {
-      datum = candidate;
+      datum = (uint16_t)candidate; // strip ID
       return true;
     }
   else
@@ -249,33 +249,27 @@ void recover_and_initialize_flash( void)
     {
       // prepare page 0 for data import
       erase_sector( 0);
-      delay( 1000);
       bool success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success);
       (void) import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       erase_sector( 1); // now we clean the upper sector from the old data
-      delay( MAXIMUM_PAGE_ERASE_TIME);
       return; // job done
     }
   else if( *(uint16_t *)PAGE_0_HEAD == 0) // new flash layout, using page 0
     {
       erase_sector( 1);
-      delay( 1000);
       bool success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success);
-      (void) import_legacy_EEPROM_data( PAGE_1_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
+      (void) import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       erase_sector( 0); // now we clean the upper sector from the old data
-      delay( MAXIMUM_PAGE_ERASE_TIME);
       return; // job done
     }
   else if( *(uint16_t *)PAGE_1_HEAD == 0) // new flash layout, using page 1
     {
       erase_sector( 0);
-      delay( 1000);
       bool success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
-      (void) import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
+      (void) import_legacy_EEPROM_data( PAGE_1_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       erase_sector( 1); // now we clean the upper sector from the old data
-      delay( MAXIMUM_PAGE_ERASE_TIME);
       return; // job done
     }
 
