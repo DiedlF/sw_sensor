@@ -109,7 +109,7 @@ void erase_sector_operation( unsigned sector)
 
   FLASH_EraseInitTypeDef EraseInit;
   EraseInit.TypeErase = FLASH_TYPEERASE_SECTORS;
-  EraseInit.VoltageRange = VOLTAGE_RANGE;
+  EraseInit.VoltageRange = FLASH_VOLTAGE_RANGE_3;
   EraseInit.Sector = sector == 0 ? FLASH_SECTOR_10 : FLASH_SECTOR_11;
   EraseInit.NbSectors = 1;
 
@@ -178,19 +178,10 @@ bool write_EEPROM_value (EEPROM_PARAMETER_ID id, float value)
   return false; // = OK
 }
 
+//!< interface to legacy read function
 bool read_EEPROM_value (EEPROM_PARAMETER_ID id, float &value)
 {
-  if (permanent_data_file.in_use())
-    {
-      return not permanent_data_file.retrieve_data( id, 1, &value);
-    }
-  else // legacy version
-    {
-      uint16_t data;
-      if (HAL_OK != EE_ReadVariable( id, (uint16_t*) &data))
-	return true;
-      return (EEPROM_convert (id, (EEPROM_data_t&) data, value, READ));
-    }
+  return not permanent_data_file.retrieve_data( id, 1, &value);
 }
 
 bool import_raw_EEPROM_data( EEPROM_PARAMETER_ID id, uint32_t * flash_address, unsigned size_words, uint16_t &datum)
@@ -244,6 +235,8 @@ static bool import_legacy_EEPROM_data( uint32_t * flash_address, unsigned size_w
     {
 	if( not import_single_EEPROM_value( parameter->id, flash_address, size_words, value))
 	  value = parameter->default_value;
+	else
+	  result = false;
 
 	result &= permanent_data_file.store_data ( parameter->id, 1, &value);
     }
@@ -259,10 +252,9 @@ void recover_and_initialize_flash( void)
       delay( 1000);
       bool success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success);
-      success = import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
-      ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
+      (void) import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       erase_sector( 1); // now we clean the upper sector from the old data
-      delay( 1000);
+      delay( MAXIMUM_PAGE_ERASE_TIME);
       return; // job done
     }
   else if( *(uint16_t *)PAGE_0_HEAD == 0) // new flash layout, using page 0
@@ -271,10 +263,9 @@ void recover_and_initialize_flash( void)
       delay( 1000);
       bool success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success);
-      success = import_legacy_EEPROM_data( PAGE_1_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
-      ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
+      (void) import_legacy_EEPROM_data( PAGE_1_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       erase_sector( 0); // now we clean the upper sector from the old data
-      delay( 1000);
+      delay( MAXIMUM_PAGE_ERASE_TIME);
       return; // job done
     }
   else if( *(uint16_t *)PAGE_1_HEAD == 0) // new flash layout, using page 1
@@ -282,10 +273,9 @@ void recover_and_initialize_flash( void)
       erase_sector( 0);
       delay( 1000);
       bool success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
-      success = import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
-      ASSERT( success); // we have erased the sector and prepared the file system, so this shall be OK
+      (void) import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       erase_sector( 1); // now we clean the upper sector from the old data
-      delay( 1000);
+      delay( MAXIMUM_PAGE_ERASE_TIME);
       return; // job done
     }
 

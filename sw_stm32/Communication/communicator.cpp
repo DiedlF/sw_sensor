@@ -297,8 +297,18 @@ void communicator_runnable (void*)
       --synchronizer_10Hz;
       if( synchronizer_10Hz == 0)
 	{
-	  landing_detected |= organizer.update_every_100ms (output_data);
 	  synchronizer_10Hz = 10;
+
+	  landing_detected |= organizer.update_at_10Hz (output_data);
+//	  if( landing_detected) // todo patch
+	  extern bool user_initiated_reset;
+	  if( user_initiated_reset)
+	    {
+	      user_initiated_reset = false; // todo patch
+
+	      organizer.cleanup_after_landing();
+	      landing_detected = false;
+	    }
 	}
 
       // service the GNSS LED
