@@ -165,17 +165,14 @@ CAN_listener_task_runnable (void*)
     { 0x040F, 0x0402, &can_packet_q }; // Listen for "Set System Wide Config Item" on CAN
   subscribe_CAN_messages (my_entry);
 
-#if WITH_EXTERNAL_MAGNETOMETER
   my_entry.ID_value = 0x160;
   my_entry.ID_mask = 0x0fff;
   subscribe_CAN_messages (my_entry);
-#endif
 
   CANpacket p;
   while (true)
     {
 
-#if WITH_EXTERNAL_MAGNETOMETER
       bool rx_ed = can_packet_q.receive(p, 100);
       if( rx_ed)
 	{
@@ -193,10 +190,6 @@ CAN_listener_task_runnable (void*)
 	  if( xTaskGetTickCount() - magnetometer_last_heard > 100)
 	    update_system_state_clear( EXTERNAL_MAGNETOMETER_AVAILABLE);
 	}
-
-#else
-      can_packet_q.receive(p);
-#endif
 
       if(( p.id & 0x40F) == 0x402) // = "set system wide config item"
         switch (p.data_h[0])

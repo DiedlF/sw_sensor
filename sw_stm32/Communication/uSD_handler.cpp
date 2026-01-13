@@ -676,11 +676,11 @@ restart:
   while(true)
     {
       // here when opening a new output file we decide if the external magnetometer is active
-      // if this state changes while we are logging there will be no severe problem
+      // if this state changes while we are logging we do not re-decide
       unsigned recorder_data_size =
 	  (system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
-	  ? sizeof( observations_type)
-	  : sizeof( measurement_data_t) + sizeof( coordinates_t);
+	  ? sizeof( extended_observations_type)
+	  : sizeof( observations_type);
 
       UINT writtenBytes = 0;
       uint8_t *buf_ptr = mem_buffer;
