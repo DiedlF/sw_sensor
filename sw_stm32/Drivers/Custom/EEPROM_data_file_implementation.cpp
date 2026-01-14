@@ -41,7 +41,7 @@ void FLASH_write( uint32_t * dest, uint32_t * source, unsigned n_words)
 
   while( n_words --)
     {
-      status = HAL_FLASH_Program_IT( TYPEPROGRAM_WORD, (uint32_t)dest, *source++);
+      status = HAL_FLASH_Program_IT( TYPEPROGRAM_WORD, (uint32_t)dest++, *source++);
       ASSERT( status == HAL_OK);
       bool no_timeout = flash_isr_to_task.wait( INFINITE_WAIT);
       ASSERT( no_timeout);
