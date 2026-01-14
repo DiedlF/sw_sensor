@@ -4,6 +4,8 @@
 #include "EEPROM_data_file_implementation.h"
 #include "common.h"
 
+#if RUN_FLASH_WRITE_TESTER
+
 uint64_t getTime_usec(void);
 
 COMMON unsigned write_test_counter;
@@ -18,13 +20,7 @@ static void runnable( void *)
     {
       time = getTime_usec();
       success = permanent_data_file.store_data ( 0xa5, 2, &time);
-      if( not success)
-        {
-          file_system_page_swap();
-          delay( 3000); // todo patch
-          success = permanent_data_file.store_data( 0xa5, 2, &time);
-          ASSERT( success);
-        }
+      ASSERT( success);
     }
 }
 
@@ -47,3 +43,5 @@ static ROM TaskParameters_t p =
   };
 
 COMMON RestrictedTask file_write_tester (p);
+
+#endif

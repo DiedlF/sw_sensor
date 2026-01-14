@@ -249,17 +249,15 @@ void recover_and_initialize_flash( void)
     {
       // prepare page 0 for data import
       erase_sector( 0);
-      bool success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
-      ASSERT( success);
-      (void) import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
-      erase_sector( 1); // now we clean the upper sector from the old data
+      permanent_data_file.set_memory_virgin( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      (void) import_legacy_EEPROM_data( (uint32_t *)0x080F8000, 0x2000);
+      erase_sector( 1); // now we clean the upper sector removing the old data
       return; // job done
     }
-  else if( *(uint16_t *)PAGE_0_HEAD == 0) // new flash layout, using page 0
+  else if( *(uint16_t *)PAGE_0_HEAD == 0) // new flash layout, import from page 0
     {
       erase_sector( 1);
-      bool success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
-      ASSERT( success);
+      permanent_data_file.set_memory_virgin( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       (void) import_legacy_EEPROM_data( PAGE_0_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       erase_sector( 0); // now we clean the upper sector from the old data
       return; // job done
@@ -267,12 +265,11 @@ void recover_and_initialize_flash( void)
   else if( *(uint16_t *)PAGE_1_HEAD == 0) // new flash layout, using page 1
     {
       erase_sector( 0);
-      bool success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      permanent_data_file.set_memory_virgin( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
       (void) import_legacy_EEPROM_data( PAGE_1_HEAD, PAGE_SIZE_BYTES / sizeof( uint32_t));
       erase_sector( 1); // now we clean the upper sector from the old data
       return; // job done
     }
-
   else if( *(int32_t *)PAGE_1_HEAD != -1) // check for file system on page 1
     {
       bool success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
@@ -281,8 +278,7 @@ void recover_and_initialize_flash( void)
 
       // make a page swap and copy all clean records
       erase_sector( 0);
-      EEPROM_file_system new_data_copy;
-      new_data_copy.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      EEPROM_file_system new_data_copy( (EEPROM_file_system_node *)PAGE_0_HEAD, (EEPROM_file_system_node *)PAGE_0_HEAD+PAGE_SIZE_WORDS);
 
       // try data recovery
       new_data_copy.import_all_data( permanent_data_file);
@@ -300,8 +296,7 @@ void recover_and_initialize_flash( void)
 
       // make a page swap and copy all clean records
       erase_sector( 1);
-        EEPROM_file_system new_data_copy;
-      new_data_copy.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
+      EEPROM_file_system new_data_copy( (EEPROM_file_system_node *)PAGE_1_HEAD, (EEPROM_file_system_node *)PAGE_1_HEAD+PAGE_SIZE_WORDS);
 
       // try data recovery
       new_data_copy.import_all_data(permanent_data_file);
@@ -311,12 +306,15 @@ void recover_and_initialize_flash( void)
       ASSERT( success); // now it must be OK !
       erase_sector(0); // the old sector is obsolete now !
     }
-  else // virgin start, there is nothing within any EEPROM emulation section
+  else // virgin start, there appears to be nothing useful within any EEPROM emulation section
     {
       erase_sector( 0);
       erase_sector( 1);
-      (void) permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
+      (void) permanent_data_file.set_memory_virgin( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
     }
+  // finally: if the file system is almost full: do a page swap right now
+  if( permanent_data_file.get_remaining_space_words() < (PAGE_SIZE_WORDS >> 2))
+    file_system_page_swap();
 }
 
 static void EEPROM_writing_runnable( void *)
