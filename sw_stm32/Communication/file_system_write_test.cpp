@@ -13,7 +13,8 @@ static void runnable( void *)
   bool success;
   delay( 2000);
   uint64_t time;
-  for( write_test_counter=0; write_test_counter < 12000; ++write_test_counter)
+  while( true)
+    for( write_test_counter=0; write_test_counter < 12000; ++write_test_counter)
     {
       time = getTime_usec();
       success = permanent_data_file.store_data ( 0xa5, 2, &time);
@@ -24,9 +25,7 @@ static void runnable( void *)
           success = permanent_data_file.store_data( 0xa5, 2, &time);
           ASSERT( success);
         }
-      delay(1);
     }
-  ASSERT( false);
 }
 
 #define STACKSIZE 128
