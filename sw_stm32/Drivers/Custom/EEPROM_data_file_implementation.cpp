@@ -290,6 +290,7 @@ void recover_and_initialize_flash( void)
       // ... and change over
       success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success); // now it must be OK !
+      erase_sector(1); // the old sector is obsolete now !
     }
   else if( *(int32_t *)PAGE_0_HEAD != -1) // check for file system on page 0
     {
@@ -308,6 +309,7 @@ void recover_and_initialize_flash( void)
       // ... and change over
       success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       ASSERT( success); // now it must be OK !
+      erase_sector(0); // the old sector is obsolete now !
     }
   else // virgin start, there is nothing within any EEPROM emulation section
     {
@@ -338,20 +340,20 @@ static void EEPROM_writing_runnable( void *)
       if( order.dest == 0) // erase commmand
 	{
 	  erase_sector_operation( 0);
-	  no_timeout = flash_isr_to_task.wait( INFINITE_WAIT);
+	  no_timeout = flash_isr_to_task.wait( FLASH_ERASE_TIMEOUT);
 	  ASSERT( no_timeout);
 	}
       else if( order.dest == (uint32_t *)1)
 	{
 	  erase_sector_operation( 1);
-	  no_timeout = flash_isr_to_task.wait( INFINITE_WAIT);
+	  no_timeout = flash_isr_to_task.wait( FLASH_ERASE_TIMEOUT);
 	  ASSERT( no_timeout);
 	}
       else
 	{
 	  status = HAL_FLASH_Program_IT( TYPEPROGRAM_WORD, (uint32_t)(order.dest), order.value);
 	  ASSERT( status == HAL_OK);
-	  no_timeout = flash_isr_to_task.wait( INFINITE_WAIT);
+	  no_timeout = flash_isr_to_task.wait( FLASH_ERASE_TIMEOUT);
 	  ASSERT( no_timeout);
 	}
 
