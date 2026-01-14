@@ -13,18 +13,18 @@ static void runnable( void *)
   bool success;
   delay( 2000);
   uint64_t time;
-  synchronous_timer t(5);
   for( write_test_counter=0; write_test_counter < 12000; ++write_test_counter)
     {
-      t.sync();
       time = getTime_usec();
       success = permanent_data_file.store_data ( 0xa5, 2, &time);
       if( not success)
         {
           file_system_page_swap();
+          delay( 3000); // todo patch
           success = permanent_data_file.store_data( 0xa5, 2, &time);
           ASSERT( success);
         }
+      delay(1);
     }
   ASSERT( false);
 }
@@ -38,7 +38,7 @@ static ROM TaskParameters_t p =
   "WRITE_TEST",
   STACKSIZE,
   0,
-  COMMUNICATOR_PRIORITY,
+  EEPROM_WRITER_PRIORITY,
   stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },

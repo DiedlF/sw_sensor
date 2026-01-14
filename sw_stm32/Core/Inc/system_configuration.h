@@ -88,7 +88,7 @@
 // more parameters
 
 #define FLASH_ISR_TIMEOUT		2
-#define FLASH_ERASE_TIMEOUT		250
+#define FLASH_ERASE_TIMEOUT		2000
 #define FLASH_ACCESS_TIMEOUT		10
 #define MAXIMUM_PAGE_ERASE_TIME 	2000
 
