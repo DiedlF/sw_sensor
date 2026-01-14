@@ -17,7 +17,7 @@ public:
   {
     bool success;
     if( lock_count == 0)
-      success = EEPROM_lock.lock(10);
+      success = EEPROM_lock.lock(2000); // todo patch check time
     ASSERT( success);
     ++lock_count;
   }

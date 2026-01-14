@@ -346,6 +346,9 @@ void communicator_runnable (void*)
 	  else
 	    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin, GPIO_PIN_RESET);
 	  break;
+	default:
+	  ASSERT( false);
+	  break;
       }
 
       // service the red error LED
