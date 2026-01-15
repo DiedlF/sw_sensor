@@ -38,7 +38,6 @@
 #include "uSD_handler.h"
 #include "persistent_data.h"
 #include "communicator.h"
-#include "system_state.h"
 
 extern "C" void sync_logger (void);
 
@@ -51,7 +50,7 @@ COMMON Queue < communicator_command_t> communicator_command_queue(2);
 
 extern RestrictedTask NMEA_task;
 extern RestrictedTask communicator_task;
-extern bool landing_detected;
+COMMON reminder_flag landing_detected;
 
 static ROM bool TRUE=true;
 static ROM bool FALSE=false;
@@ -299,15 +298,14 @@ void communicator_runnable (void*)
 	{
 	  synchronizer_10Hz = 10;
 
-	  landing_detected |= organizer.update_at_10Hz (output_data);
-//	  if( landing_detected) // todo patch
-	  extern bool user_initiated_reset;
-	  if( user_initiated_reset)
+	  bool landing_detected_here = organizer.update_at_10Hz (output_data);
+//	  if( landing_detected_here) // todo patch
+	  if( landing_detected.test_and_reset()) // todo patch
 	    {
-	      user_initiated_reset = false; // todo patch
-
 	      organizer.cleanup_after_landing();
-	      landing_detected = false;
+	      perform_after_landing_actions.set();
+	      delay(100);
+	      ASSERT(0);
 	    }
 	}
 
@@ -375,7 +373,7 @@ static ROM TaskParameters_t p =
   COMMUNICATOR_PRIORITY, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
-      { (void *)0x080C0000, 0x00040000, portMPU_REGION_READ_ONLY }, // EEPROM
+      { (void *)0x080C0000, 0x00040000, portMPU_REGION_READ_WRITE}, // EEPROM
       { &temporary_mag_calculation_data, 8192, portMPU_REGION_READ_WRITE}
     }
   };

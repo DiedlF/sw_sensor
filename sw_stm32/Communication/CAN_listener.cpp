@@ -31,6 +31,7 @@
 #include "NMEA_format.h"
 #include "watchdog_handler.h"
 #include "system_state.h"
+#include "communicator.h"
 
 #define CAN_Id_Send_Config_Value 0x12f
 
@@ -239,13 +240,13 @@ CAN_listener_task_runnable (void*)
 	    communicator_command_queue.send( FINE_TUNE_CALIB, 1);
 	    break;
 	  case CMD_RESET_SENSOR:
-#if 0
+#if 0 // todo patch
 #if CRASFILE_ON_USER_RESET == 0
 	    user_initiated_reset = true;
 #endif
 	    ASSERT(false); // trigger exception that way
 #else
-	    user_initiated_reset = true;
+	    landing_detected.set();
 #endif
 	    break;
 

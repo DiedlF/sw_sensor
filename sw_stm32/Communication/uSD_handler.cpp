@@ -44,8 +44,10 @@
 #include "EEPROM_data_file_implementation.h"
 #include "persistent_data_file.h"
 #include "system_state.h"
+#include "reminder_flag.h"
 
 extern EEPROM_file_system permanent_data_file;
+COMMON reminder_flag perform_after_landing_actions;
 
 ROM uint8_t SHA_INITIALIZATION[] = "presently a well-known string";
 
@@ -55,7 +57,6 @@ extern uint32_t UNIQUE_ID[4];
 COMMON char *crashfile;
 COMMON unsigned crashline;
 COMMON bool dump_sensor_readings;
-COMMON bool landing_detected;
 
 COMMON FATFS fatfs;
 extern SD_HandleTypeDef hsd;
@@ -757,12 +758,9 @@ restart:
 	      sync_counter = 0;
 	      f_sync (&the_file);
 
-	      if( landing_detected)
+	      if( perform_after_landing_actions.test_and_reset())
 		{
-		  landing_detected = false;
-
 		  f_close(&the_file);
-
 		  delay(100); // just to be sure everything is written
 		  break; /* break inner while loop and start again, which will start a new set of logfiles */
 		}
