@@ -50,7 +50,6 @@ COMMON Queue < communicator_command_t> communicator_command_queue(2);
 
 extern RestrictedTask NMEA_task;
 extern RestrictedTask communicator_task;
-COMMON reminder_flag landing_detected;
 
 static ROM bool TRUE=true;
 static ROM bool FALSE=false;
@@ -299,13 +298,10 @@ void communicator_runnable (void*)
 	  synchronizer_10Hz = 10;
 
 	  bool landing_detected_here = organizer.update_at_10Hz (output_data);
-//	  if( landing_detected_here) // todo patch
-	  if( landing_detected.test_and_reset()) // todo patch
+	  if( landing_detected_here)
 	    {
 	      organizer.cleanup_after_landing();
 	      perform_after_landing_actions.set();
-	      delay(100);
-	      ASSERT(0);
 	    }
 	}
 

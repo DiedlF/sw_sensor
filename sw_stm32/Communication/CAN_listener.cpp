@@ -240,14 +240,10 @@ CAN_listener_task_runnable (void*)
 	    communicator_command_queue.send( FINE_TUNE_CALIB, 1);
 	    break;
 	  case CMD_RESET_SENSOR:
-#if 0 // todo patch
 #if CRASFILE_ON_USER_RESET == 0
 	    user_initiated_reset = true;
 #endif
 	    ASSERT(false); // trigger exception that way
-#else
-	    landing_detected.set();
-#endif
 	    break;
 
 	  default: // try to interpret the command as "set" or "get" value
