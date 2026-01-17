@@ -368,7 +368,7 @@ bool write_EEPROM_dump( const char * filename)
 	{
 	  next = buffer;
 	  append_string( next, "Mag_");
-	  utox( next, i, 2);
+	  utox( next, i, 1);
 	  append_string( next, " = ");
 	  next = my_ftoa (next, mag_calib_param[i]);
 	  newline( next);
@@ -388,7 +388,7 @@ bool write_EEPROM_dump( const char * filename)
 	{
 	  next = buffer;
 	  append_string( next, "XMag_");
-	  utox( next, i, 2);
+	  utox( next, i, 1);
 	  append_string( next, " = ");
 	  next = my_ftoa (next, mag_calib_param[i]);
 	  newline( next);
