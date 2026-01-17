@@ -360,6 +360,48 @@ bool write_EEPROM_dump( const char * filename)
 	}
       }
 
+  float32_t mag_calib_param[4*3];
+
+  if( permanent_data_file.retrieve_data( MAG_SENSOR_XFER_MATRIX, 4*3, (uint32_t *)mag_calib_param))
+    {
+      for( unsigned i=0; i< 4*3; ++i)
+	{
+	  next = buffer;
+	  append_string( next, "Mag_");
+	  utox( next, i, 2);
+	  append_string( next, " = ");
+	  next = my_ftoa (next, mag_calib_param[i]);
+	  newline( next);
+	  sha.update( (uint8_t *)buffer, next-buffer);
+	  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
+	  if( (fresult != FR_OK) || (writtenBytes != (next-buffer)))
+	    {
+	      f_close(&fp);
+	      return fresult; // give up ...
+	    }
+	}
+    }
+
+  if( permanent_data_file.retrieve_data( EXT_MAG_SENSOR_XFER_MATRIX, 4*3, (uint32_t *)mag_calib_param))
+    {
+      for( unsigned i=0; i< 4*3; ++i)
+	{
+	  next = buffer;
+	  append_string( next, "XMag_");
+	  utox( next, i, 2);
+	  append_string( next, " = ");
+	  next = my_ftoa (next, mag_calib_param[i]);
+	  newline( next);
+	  sha.update( (uint8_t *)buffer, next-buffer);
+	  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
+	  if( (fresult != FR_OK) || (writtenBytes != (next-buffer)))
+	    {
+	      f_close(&fp);
+	      return fresult; // give up ...
+	    }
+	}
+    }
+
   uint16_t option = *(uint16_t *) 0x1fffc000;
   next = buffer;
   append_string( next, "Option bytes = ");
@@ -380,15 +422,15 @@ bool write_EEPROM_dump( const char * filename)
   for( unsigned i=0; i<16; ++i)
       utox( next, (uint32_t)(digest[i]), 2);
   newline(next);
+
   for( unsigned i=0; i<16; ++i)
       utox( next, (uint32_t)(digest[i+16]), 2);
-  newline(next);
 
   newline(next);
-  (void)f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
 
+  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
   f_close(&fp);
-  return FR_OK;
+  return fresult;
 }
 
 //!< find software image file and load it if applicable
@@ -566,21 +608,12 @@ read_software_update (void)
 //!< this executable takes care of all uSD reading and writing
 void uSD_handler_runnable (void*)
 {
-re_initialize_flash:
-
-  recover_and_initialize_flash();
-
 restart:
-
-// ...just to be sure ...
-  if( not ensure_EEPROM_parameter_integrity())
-    goto re_initialize_flash;
-
-  bool OK = permanent_data_file.is_consistent();
-
   HAL_SD_DeInit (&hsd);
   if(! BSP_PlatformIsDetected())
     {
+      recover_and_initialize_flash();
+      (void) ensure_EEPROM_parameter_integrity();
       setup_file_handling_completed.signal(); // give up waiting for configuration
       watchdog_activator.signal(); // now start the watchdog
 
@@ -631,6 +664,9 @@ restart:
       pFunction copy_function_address = *(pFunction *)0x06001c;
       copy_function_address();
       }
+
+  recover_and_initialize_flash();
+  (void) ensure_EEPROM_parameter_integrity();
 
   drop_privileges(); // go protected
 
