@@ -166,7 +166,7 @@ CAN_listener_task_runnable (void*)
     { 0x040F, 0x0402, &can_packet_q }; // Listen for "Set System Wide Config Item" on CAN
   subscribe_CAN_messages (my_entry);
 
-  my_entry.ID_value = 0x160;
+  my_entry.ID_value = 0x070;
   my_entry.ID_mask = 0x0fff;
   subscribe_CAN_messages (my_entry);
 
@@ -177,9 +177,9 @@ CAN_listener_task_runnable (void*)
       bool rx_ed = can_packet_q.receive(p, 100);
       if( rx_ed)
 	{
-	if ( (p.id == 0x160) && (p.dlc == 6))
+	if ( (p.id == 0x070) && (p.dlc == 6))
 	  {
-	    output_data.obs.external_magnetometer_reading[0] = (float32_t)(p.data_sh[0]) * 0.01333333f; // 1 uTesla / 75LSB
+	    output_data.obs.external_magnetometer_reading[0] = (float32_t)(p.data_sh[0]) * 0.01333333f; // 75LSB / uTesla
 	    output_data.obs.external_magnetometer_reading[1] = (float32_t)(p.data_sh[1]) * 0.01333333f;
 	    output_data.obs.external_magnetometer_reading[2] = (float32_t)(p.data_sh[2]) * 0.01333333f;
 	    update_system_state_set( EXTERNAL_MAGNETOMETER_AVAILABLE);
