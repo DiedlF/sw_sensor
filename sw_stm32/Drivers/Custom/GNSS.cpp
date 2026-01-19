@@ -125,7 +125,8 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 			* latitude_scale;
 
 	coordinates.position[DOWN] = (double)(pvt.height) * SCALE_MM_NEG;
-	coordinates.geo_sep_dm = (pvt.height_ellip - pvt.height) * SCALE_CM;
+	coordinates.geo_sep_dm 	= (pvt.height_ellip - pvt.height) * SCALE_CM;
+	coordinates.pDOP = pvt.pDOP;
 
 	// record new time
 	coordinates.year   = pvt.year % 100;
