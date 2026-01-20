@@ -47,7 +47,7 @@ Use the STM32CubeProgrammer to flash the binary to the STM32 micro-controller.
 - Optionally: Use the arduino IDE to change the device name and the RF mode (Bluetooth or WLAN).
 
 ## Prepare an sd-card with configuration files
-- put a sensor_config.txt file (template in configuration/) in the sd cards root directory. Adjust the parameters as described in configuration/README.md
+- put a larus_sensor_config.ini file (template in configuration/) in the sd cards root directory. Adjust the parameters as described in configuration/README.md
 Initially the heading may be inaccurate as the magnetic calibration algorithm needs some time in the air to find the exact calibration. 
 A 30 minutes flight with some right and left turns should be sufficient to calibrate the compass module. 
 - Optionally: Create a directory with the name "logger" to enable logging of all measurement data with 100Hz

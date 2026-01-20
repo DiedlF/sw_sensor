@@ -105,6 +105,7 @@ void communicator_runnable (void*)
 
   GNSS_configration_t GNSS_configuration =
       (GNSS_configration_t) round(configuration (GNSS_CONFIGURATION));
+  organizer.set_GNSS_type(GNSS_configuration); // required for speed accuracy monitoring limit value
 
   uint8_t count_10Hz = 1; // de-synchronize CAN output by 1 cycle
 
