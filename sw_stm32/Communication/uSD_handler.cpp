@@ -709,7 +709,7 @@ restart:
       delay (100);
     }
 
-  // repeat writing logfiles for all successive flights
+  // repeat writing log files for all successive flights
   while(true)
     {
       // here when opening a new output file we decide if the external magnetometer is active
@@ -758,7 +758,13 @@ restart:
 	  notify_take (true); // wait for synchronization by from communicator OR by the crash detection mechanism
 
 	  if( crashfile && ! user_initiated_reset)
-	    write_crash_dump();
+	    {
+	      // write remaining logger data and close the file
+	      (void) f_write (&the_file, mem_buffer, buf_ptr - mem_buffer, &writtenBytes);
+	      f_close(&the_file);
+
+	      write_crash_dump();
+	    }
 
 	  memcpy (buf_ptr, (uint8_t*) &(output_data.obs), recorder_data_size);
 	  buf_ptr += recorder_data_size;
