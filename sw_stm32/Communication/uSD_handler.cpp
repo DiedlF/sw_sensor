@@ -256,11 +256,11 @@ extern RecorderDataType myTraceBuffer;
   fresult = f_write (&fp, (uint8_t*) &output_data, sizeof( output_data_t), &writtenBytes);
   f_close( &fp);
 
-  f_mount ( 0, "", 0); // unmount uSD
-
 emergency_exit:
-
-  delay( 100); // just to be sure ...
+  f_mount ( 0, "", 0); // unmount uSD
+  delay( 100);
+  HAL_SD_DeInit (&hsd);
+  delay( 100);
 
   while( true)
     /* wake watchdog */;
