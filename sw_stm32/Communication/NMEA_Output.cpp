@@ -99,7 +99,8 @@ static void NMEA_runnable (void* data)
       if( --decimating_counter == 0)
 	{
 	  decimating_counter = NMEA_DECIMATION_RATIO;
-	  GNSS_data_guard.lock();
+	  bool ok = GNSS_data_guard.lock(100);
+	  ASSERT( ok);
 	  format_NMEA_string_slow( output_data, NMEA_buf);
 	  GNSS_data_guard.release();
 	}
