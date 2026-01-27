@@ -93,9 +93,10 @@ void USART_2_Init (void)
     }
 }
 
-void USART_2_transmit_DMA( uint8_t *pData, uint16_t Size)
+bool USART_2_transmit_DMA( uint8_t *pData, uint16_t Size)
 {
-  HAL_UART_Transmit_DMA (&huart2, pData, Size);
+  HAL_StatusTypeDef status = HAL_UART_Transmit_DMA (&huart2, pData, Size);
+  return( status == HAL_OK);
 }
 
 /**

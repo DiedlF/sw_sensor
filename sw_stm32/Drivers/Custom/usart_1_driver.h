@@ -14,7 +14,7 @@
 #include <stdbool.h>  //For usage from C-Code
 
 void USART_1_Init (void);
-void USART_1_transmit_DMA( uint8_t *pData, uint16_t Size);
+bool USART_1_transmit_DMA( uint8_t *pData, uint16_t Size);
 bool UART1_Receive(uint8_t *pRxByte, uint32_t timeout);
 void UART1_RxCpltCallback(void);
 
