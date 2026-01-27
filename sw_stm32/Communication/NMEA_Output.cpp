@@ -48,12 +48,13 @@ static void NMEA_runnable (void* data)
 
   bool horizon_available = configuration( HORIZON);
 
-re_initialize:
 
 #if ACTIVATE_USB_NMEA
   MX_USB_DEVICE_Init();
   delay( 1);
 #endif
+
+re_initialize: // in case of USART hangup
 
 #if ACTIVATE_USART_2_NMEA
   USART_2_Init ();
