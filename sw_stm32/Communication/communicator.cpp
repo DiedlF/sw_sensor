@@ -174,8 +174,8 @@ void communicator_runnable (void*)
 
   organizer.initialize_after_first_measurement(output_data);
 
-  NMEA_task.resume();
-  CAN_task.resume();
+//  NMEA_task.resume();
+//  CAN_task.resume();
 
   unsigned synchronizer_10Hz = 10; // re-sampling 100Hz -> 10Hz
   unsigned GNSS_watchdog = 0;
@@ -353,7 +353,7 @@ void communicator_runnable (void*)
       if (++count_10Hz >= 10) // resample 100Hz -> 10Hz
 	{
 	  count_10Hz = 0;
-	  trigger_CAN ();
+//	  trigger_CAN ();
 	}
 
       organizer.report_data ( output_data);

@@ -76,4 +76,4 @@ static ROM TaskParameters_t p =
     }
   };
 
-COMMON RestrictedTask CAN_task (p);
+//COMMON RestrictedTask CAN_task (p);
