@@ -96,6 +96,13 @@ void communicator_runnable (void*)
   // wait until configuration file read if one is given
   setup_file_handling_completed.wait();
 
+  uint64_t getTime_usec(void);
+  uint64_t time = getTime_usec();
+
+  float value = configuration (HORIZON) ;
+
+  time = getTime_usec() - time;
+
   organizer_t organizer;
 
   organizer.initialize_before_measurement();
@@ -171,6 +178,10 @@ void communicator_runnable (void*)
 
   for( int i=0; i<100; ++i) // wait 1 s until measurement stable
     notify_take (true);
+
+  // the construction-process may be very slow and shall not wake the watchdog
+  // now we can switch to our original priority
+  communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
 
   organizer.initialize_after_first_measurement(output_data);
 
@@ -367,7 +378,7 @@ static uint32_t __ALIGNED(STACKSIZE*sizeof(uint32_t)) stack_buffer[STACKSIZE];
 static ROM TaskParameters_t p =
   { communicator_runnable, "COM",
   STACKSIZE, 0,
-  COMMUNICATOR_PRIORITY, stack_buffer,
+  STANDARD_TASK_PRIORITY, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
       { (void *)0x080C0000, 0x00040000, portMPU_REGION_READ_WRITE}, // EEPROM

@@ -97,7 +97,7 @@
 
 #define ACTIVATE_FPU_EXCEPTION_TRAP 	1 // I want to be SET !
 #define SET_FPU_FLUSH_TO_ZERO		1
-#define ACTIVATE_WATCHDOG		1
+#define ACTIVATE_WATCHDOG		1 // todo patch
 #define WATCHDOG_STATISTICS 		0
 #define TRACE_ISR			0
 #define INJECT_ERROR_NUMBER		0
