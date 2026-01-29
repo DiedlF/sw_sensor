@@ -51,7 +51,7 @@ void decimate_sensor_observations( const output_data_t &output_data)
   noise_energy += SQR( (uint64_t)(output_data.obs.m.static_pressure + 0.5f) - pabs_sum / samples);
   heading_decimator.respond( output_data.euler.yaw);
   voltage_decimator.respond( output_data.obs.m.supply_voltage);
-  inclination_decimator.respond( ATAN2( output_data.nav_induction_gnss[DOWN], output_data.nav_induction_gnss[NORTH]));
+  inclination_decimator.respond( ATAN2( output_data.nav_induction[DOWN], output_data.nav_induction[NORTH]));
 }
 
 statistics get_sensor_data( void)
@@ -156,12 +156,12 @@ void format_sensor_dump( const output_data_t &output_data, string_buffer_t &NMEA
   append_string( s, "Induction NED: ");
   for( unsigned i=0; i<3; ++i)
     {
-      to_ascii_n_decimals( output_data.nav_induction_gnss[i], 2, s);
+      to_ascii_n_decimals( output_data.nav_induction[i], 2, s);
       *s++=' ';
     }
 
   append_string( s, " Strength = ");
-  to_ascii_n_decimals( output_data.nav_induction_gnss.abs(), 2, s);
+  to_ascii_n_decimals( output_data.nav_induction.abs(), 2, s);
   newline( s);
 
   float heading = heading_decimator.get_output();
