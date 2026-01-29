@@ -13,14 +13,18 @@ COMMON unsigned write_test_counter;
 static void runnable( void *)
 {
   bool success;
-  delay( 2000);
+  recover_and_initialize_flash();
   uint64_t time;
-  while( true)
-    for( write_test_counter=0; write_test_counter < 12000; ++write_test_counter)
+
+  while (true)
     {
-      time = getTime_usec();
-      success = permanent_data_file.store_data ( 0xa5, 2, &time);
-      ASSERT( success);
+     for( write_test_counter=0; write_test_counter < 9000; ++write_test_counter)
+      {
+	time = getTime_usec();
+	success = permanent_data_file.store_data ( 0xa5, 2, &time);
+	ASSERT( success);
+      }
+     recover_and_initialize_flash();
     }
 }
 
