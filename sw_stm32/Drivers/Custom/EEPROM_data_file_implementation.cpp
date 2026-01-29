@@ -274,7 +274,12 @@ void recover_and_initialize_flash( void)
     {
       bool success = permanent_data_file.set_memory_to_existing_data( PAGE_1_HEAD, PAGE_1_HEAD+PAGE_SIZE_WORDS);
       if( success)
-	return;
+	{
+	  // finally: if the file system is almost full: do a page swap right now
+	  if( permanent_data_file.get_remaining_space_words() < (PAGE_SIZE_WORDS >> 2))
+	    file_system_page_swap();
+	  return;
+	}
 
       // make a page swap and copy all clean records
       erase_sector( 0);
@@ -292,7 +297,12 @@ void recover_and_initialize_flash( void)
     {
       bool success = permanent_data_file.set_memory_to_existing_data( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
       if( success)
-	return;
+	{
+	  // finally: if the file system is almost full: do a page swap right now
+	  if( permanent_data_file.get_remaining_space_words() < (PAGE_SIZE_WORDS >> 2))
+	    file_system_page_swap();
+	  return;
+	}
 
       // make a page swap and copy all clean records
       erase_sector( 1);
@@ -312,9 +322,6 @@ void recover_and_initialize_flash( void)
       erase_sector( 1);
       (void) permanent_data_file.set_memory_virgin( PAGE_0_HEAD, PAGE_0_HEAD+PAGE_SIZE_WORDS);
     }
-  // finally: if the file system is almost full: do a page swap right now
-  if( permanent_data_file.get_remaining_space_words() < (PAGE_SIZE_WORDS >> 2))
-    file_system_page_swap();
 }
 
 static void EEPROM_writing_runnable( void *)
