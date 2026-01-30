@@ -117,8 +117,6 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 	coordinates.velocity[EAST]  = velocity_east;
 	coordinates.velocity[DOWN]  = pvt.velocity[DOWN]  * SCALE_MM;
 
-	coordinates.heading_motion  = pvt.gTrack * 1e-5f;
-
 	fix_type = (FIX_TYPE) (pvt.fix_type);
 	if( (pvt.fix_flags & 1) == 0)
 	  {
