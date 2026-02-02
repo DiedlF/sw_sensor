@@ -43,14 +43,18 @@ extern Mutex GNSS_data_guard;
 
 static void NMEA_runnable (void* data)
 {
-  delay( NMEA_START_DELAY);
+  bool success;
+  suspend(); // and wait until the communicator wakes us up
 
   bool horizon_available = configuration( HORIZON);
+
 
 #if ACTIVATE_USB_NMEA
   MX_USB_DEVICE_Init();
   delay( 1);
 #endif
+
+re_initialize: // in case of USART hangup
 
 #if ACTIVATE_USART_2_NMEA
   USART_2_Init ();
@@ -77,7 +81,9 @@ static void NMEA_runnable (void* data)
   	  USBD_CDC_TransmitPacket(&hUsbDeviceFS);
 
 #if ACTIVATE_USART_1_NMEA
-        USART_1_transmit_DMA( (uint8_t *)(NMEA_buf.string), NMEA_buf.length);
+  	success = USART_1_transmit_DMA( (uint8_t *)(NMEA_buf.string), NMEA_buf.length);
+  	if( not success)
+  	  goto re_initialize;
 #endif
 #if ACTIVATE_USART_2_NMEA
         USART_2_transmit_DMA( (uint8_t *)(NMEA_buf.string), NMEA_buf.length);
@@ -99,7 +105,8 @@ static void NMEA_runnable (void* data)
       if( --decimating_counter == 0)
 	{
 	  decimating_counter = NMEA_DECIMATION_RATIO;
-	  GNSS_data_guard.lock();
+	  bool ok = GNSS_data_guard.lock(100);
+	  ASSERT( ok);
 	  format_NMEA_string_slow( output_data, NMEA_buf);
 	  GNSS_data_guard.release();
 	}
@@ -138,10 +145,14 @@ static void NMEA_runnable (void* data)
       Bluetooth_Transmit( (uint8_t *)(NMEA_buf.string), NMEA_buf.length);
 #endif
 #if ACTIVATE_USART_1_NMEA
-      USART_1_transmit_DMA( (uint8_t *)(NMEA_buf.string), NMEA_buf.length);
+      success = USART_1_transmit_DMA( (uint8_t *)(NMEA_buf.string), NMEA_buf.length);
+      if( not success)
+	goto re_initialize;
 #endif
 #if ACTIVATE_USART_2_NMEA
-      USART_2_transmit_DMA( (uint8_t *)(NMEA_buf.string), NMEA_buf.length);
+      success = USART_2_transmit_DMA( (uint8_t *)(NMEA_buf.string), NMEA_buf.length);
+      if( not success)
+	goto re_initialize;
 #endif
     }
 }

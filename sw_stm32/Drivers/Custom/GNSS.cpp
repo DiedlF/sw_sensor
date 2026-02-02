@@ -55,10 +55,7 @@ void GNSS_data_lock( unsigned function)
 GNSS_type::GNSS_type( coordinates_t & coo) :
 		coordinates( coo),
 		fix_type(FIX_none),
-		num_SV(0),
-		latitude_reference(0),
-		longitude_reference(0),
-		latitude_scale(	0.0f)
+		num_SV(0)
 	{}
 
 #if MEASURE_GNSS_REFRESH_TIME
@@ -82,21 +79,6 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 	while( count --)
 	  *to++ = *from++;
 
-	// compute time since last sample has been recorded
-	int32_t day_time_ms =
-	    pvt.hour   * 3600000 +
-	    pvt.minute * 60000 +
-	    pvt.second * 1000  +
-	    pvt.nano   / 1000000; // ns -> ms , see uBlox documentation. nano is SIGNED !
-
-#if MEASURE_GNSS_REFRESH_TIME == 0
-	float delta_t;
-#endif
-
-	delta_t = (float)(day_time_ms - old_timestamp_ms) * 0.001f;
-	ASSERT( delta_t > 0.001f); // avoid dividing by zero below
-	old_timestamp_ms = day_time_ms;
-
 	/* Pack date and time into a DWORD variable */
 	FAT_time = ((pvt.year - 1980) << 25) + (pvt.month << 21) + (pvt.day << 16)
 			+ (pvt.hour << 11) + (pvt.minute << 5) + (pvt.second >> 1);
@@ -109,23 +91,11 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 
 	GNSS_data_guard.lock();
 
-	if (latitude_reference == 0)
-	{
-		latitude_reference = pvt.latitude;
-		longitude_reference = pvt.longitude;
-		latitude_scale = COS((float) (pvt.latitude) * ANGLE_SCALE) * DEG_2_METER;
-	}
-
 	coordinates.latitude = (double) (pvt.latitude) * ANGLE_SCALE;
-	coordinates.position[NORTH] = (double) (pvt.latitude - latitude_reference)
-			* DEG_2_METER;
-
 	coordinates.longitude = (double) (pvt.longitude) * ANGLE_SCALE;
-	coordinates.position[EAST] = (double) (pvt.longitude - longitude_reference)
-			* latitude_scale;
-
-	coordinates.position[DOWN] = (double)(pvt.height) * SCALE_MM_NEG;
-	coordinates.geo_sep_dm = (pvt.height_ellip - pvt.height) * SCALE_CM;
+	coordinates.GNSS_MSL_altitude = (double)(pvt.height) * SCALE_MM;
+	coordinates.geo_sep_dm 	= (pvt.height_ellip - pvt.height) * SCALE_CM;
+	coordinates.pDOP = pvt.pDOP;
 
 	// record new time
 	coordinates.year   = pvt.year % 100;
@@ -143,15 +113,9 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 	float velocity_north = pvt.velocity[NORTH] * SCALE_MM;
 	float velocity_east  = pvt.velocity[EAST] * SCALE_MM;
 
-	coordinates.acceleration[NORTH]= (velocity_north - coordinates.velocity[NORTH]) / delta_t;
-	coordinates.acceleration[EAST] = (velocity_east  - coordinates.velocity[EAST])  / delta_t;
-
 	coordinates.velocity[NORTH] = velocity_north;
 	coordinates.velocity[EAST]  = velocity_east;
 	coordinates.velocity[DOWN]  = pvt.velocity[DOWN]  * SCALE_MM;
-
-	coordinates.speed_motion    = pvt.gSpeed * SCALE_MM;
-	coordinates.heading_motion  = pvt.gTrack * 1e-5f;
 
 	fix_type = (FIX_TYPE) (pvt.fix_type);
 	if( (pvt.fix_flags & 1) == 0)
@@ -159,9 +123,7 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 	    coordinates.velocity[NORTH] 	= 0.0f;
 	    coordinates.velocity[EAST] 		= 0.0f;
 	    coordinates.velocity[DOWN] 		= 0.0f;
-	    coordinates.acceleration[NORTH] 	= 0.0f;
-	    coordinates.acceleration[EAST] 	= 0.0f;
-	    coordinates.position[DOWN] = 0.0f; // avoid reporting wrong GNSS altitude
+	    coordinates.GNSS_MSL_altitude	= 0.0f; // avoid reporting wrong GNSS altitude
 
 	    GNSS_new_data_ready = true;
 	    return GNSS_NO_FIX;

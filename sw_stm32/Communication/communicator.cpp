@@ -36,23 +36,20 @@
 #include "GNSS_driver.h"
 #include "CAN_distributor.h"
 #include "uSD_handler.h"
-#include "compass_ground_calibration.h"
 #include "persistent_data.h"
 #include "communicator.h"
-#include "system_state.h"
 
 extern "C" void sync_logger (void);
 
 COMMON Semaphore setup_file_handling_completed(1,0,(char *)"SETUP");
 
 COMMON output_data_t __ALIGNED(1024) output_data = { 0 };
-COMMON GNSS_type GNSS (output_data.c);
+COMMON GNSS_type GNSS (output_data.obs.c);
 
 COMMON Queue < communicator_command_t> communicator_command_queue(2);
 
 extern RestrictedTask NMEA_task;
 extern RestrictedTask communicator_task;
-extern bool landing_detected;
 
 static ROM bool TRUE=true;
 static ROM bool FALSE=false;
@@ -99,6 +96,13 @@ void communicator_runnable (void*)
   // wait until configuration file read if one is given
   setup_file_handling_completed.wait();
 
+  uint64_t getTime_usec(void);
+  uint64_t time = getTime_usec();
+
+  float value = configuration (HORIZON) ;
+
+  time = getTime_usec() - time;
+
   organizer_t organizer;
 
   organizer.initialize_before_measurement();
@@ -128,7 +132,7 @@ void communicator_runnable (void*)
 	while (!GNSS_new_data_ready) // lousy spin lock !
 	  delay (100);
 
-	organizer.update_GNSS_data (output_data.c);
+	organizer.update_GNSS_data (output_data.obs.c);
 	update_system_state_set( GNSS_AVAILABLE);
 	GNSS_new_data_ready = false;
       }
@@ -149,7 +153,7 @@ void communicator_runnable (void*)
 	while (!GNSS_new_data_ready) // lousy spin lock !
 	  delay (100);
 
-	organizer.update_GNSS_data (output_data.c);
+	organizer.update_GNSS_data (output_data.obs.c);
 	update_system_state_set( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
 	GNSS_new_data_ready = false;
       }
@@ -163,7 +167,7 @@ void communicator_runnable (void*)
 	while (!GNSS_new_data_ready) // lousy spin lock !
 	  delay (100);
 
-	organizer.update_GNSS_data (output_data.c);
+	organizer.update_GNSS_data (output_data.obs.c);
 	update_system_state_set( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
 	GNSS_new_data_ready = false;
       }
@@ -175,15 +179,16 @@ void communicator_runnable (void*)
   for( int i=0; i<100; ++i) // wait 1 s until measurement stable
     notify_take (true);
 
+  // the construction-process may be very slow and shall not wake the watchdog
+  // now we can switch to our original priority
+  communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
+
   organizer.initialize_after_first_measurement(output_data);
 
   NMEA_task.resume();
+  CAN_task.resume();
 
   unsigned synchronizer_10Hz = 10; // re-sampling 100Hz -> 10Hz
-
-  communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
-
-  compass_ground_calibration_t compass_ground_calibration;
   unsigned GNSS_watchdog = 0;
 
   // this is the MAIN data acquisition and processing loop
@@ -193,16 +198,16 @@ void communicator_runnable (void*)
 
       if (GNSS_new_data_ready) // triggered after 75ms or 200ms, GNSS-dependent
 	{
-	  organizer.update_GNSS_data (output_data.c);
+	  organizer.update_GNSS_data (output_data.obs.c);
 	  GNSS_new_data_ready = false;
 	  update_system_state_set( GNSS_AVAILABLE);
 	  if( GNSS_configuration > GNSS_M9N)
 	    update_system_state_set( D_GNSS_AVAILABLE);
 
-	  if( (have_first_GNSS_fix == false) && ((output_data.c.sat_fix_type & SAT_FIX) != 0))
+	  if( (have_first_GNSS_fix == false) && ((output_data.obs.c.sat_fix_type & SAT_FIX) != 0))
 	    {
 	      have_first_GNSS_fix = true;
-	      organizer.update_magnetic_induction_data( output_data.c.latitude, output_data.c.longitude);
+	      organizer.update_magnetic_induction_data( output_data.obs.c.latitude, output_data.obs.c.longitude);
 	    }
 
 	  GNSS_watchdog=0;
@@ -213,13 +218,13 @@ void communicator_runnable (void*)
 	      ++GNSS_watchdog;
 	  else // we got no data form GNSS receiver
 	    {
-	      output_data.c.sat_fix_type = SAT_FIX_NONE;
+	      output_data.obs.c.sat_fix_type = SAT_FIX_NONE;
 	      update_system_state_clear( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
 	    }
 	}
 
-      organizer.on_new_pressure_data(output_data);
-      organizer.update_every_10ms(output_data);
+      organizer.on_new_pressure_data( output_data.obs.m.static_pressure, output_data.obs.m.pitot_pressure);
+      organizer.update_at_100_Hz(output_data);
 
       // service external commands if any
       communicator_command_t command;
@@ -228,22 +233,22 @@ void communicator_runnable (void*)
 	  switch( command)
 	  {
 	    case MEASURE_CALIB_LEFT:
-	      vector_average_organizer.source=&(output_data.m.acc);
+	      vector_average_organizer.source=&(output_data.obs.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_left);
 	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT;
+	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case MEASURE_CALIB_RIGHT:
-	      vector_average_organizer.source=&(output_data.m.acc);
+	      vector_average_organizer.source=&(output_data.obs.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_right);
 	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT;
+	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case MEASURE_CALIB_LEVEL:
-	      vector_average_organizer.source=&(output_data.m.acc);
+	      vector_average_organizer.source=&(output_data.obs.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_level);
 	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT;
+	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case SET_SENSOR_ROTATION:
 
@@ -260,10 +265,10 @@ void communicator_runnable (void*)
 	      report_horizon_avalability();
 	      break;
 	    case FINE_TUNE_CALIB:  // names "straight flight" in Larus Display Menu
-	      vector_average_organizer.source=&(output_data.m.acc);
+	      vector_average_organizer.source=&(output_data.obs.m.acc);
 	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_level);
 	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT;
+	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
 	      fine_tune_sensor_attitude = true;
 	      break;
 
@@ -285,7 +290,7 @@ void communicator_runnable (void*)
 	  // if measurement complete now
 	  if( vector_average_organizer.counter == 0)
 	    {
-	      float inverse_count = 1.0f / VECTOR_AVERAGE_COUNT;
+	      float inverse_count = 1.0f / VECTOR_AVERAGE_COUNT_SETUP;
 	      *(vector_average_organizer.destination) = vector_average_organizer.sum * inverse_count;
 
 	      // in this case we do not wait for another command but re-calculate immediately
@@ -302,8 +307,14 @@ void communicator_runnable (void*)
       --synchronizer_10Hz;
       if( synchronizer_10Hz == 0)
 	{
-	  landing_detected |= organizer.update_every_100ms (output_data);
 	  synchronizer_10Hz = 10;
+
+	  bool landing_detected_here = organizer.update_at_10Hz (output_data);
+	  if( landing_detected_here)
+	    {
+	      organizer.cleanup_after_landing();
+	      perform_after_landing_actions.set();
+	    }
 	}
 
       // service the GNSS LED
@@ -319,7 +330,7 @@ void communicator_runnable (void*)
       {
 	case GNSS_F9P_F9H:
 	case GNSS_F9P_F9P:
-	  switch(output_data.c.sat_fix_type)
+	  switch(output_data.obs.c.sat_fix_type)
 	  {
 	    case SAT_FIX:
 		  HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
@@ -335,11 +346,14 @@ void communicator_runnable (void*)
 	  }
 	  break;
 	case GNSS_M9N:
-	  if(output_data.c.sat_fix_type == SAT_FIX)
+	  if(output_data.obs.c.sat_fix_type == SAT_FIX)
 	    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
 	        ((GNSS_count & 0xe0) == 0xe0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
 	  else
 	    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin, GPIO_PIN_RESET);
+	  break;
+	default:
+	  ASSERT( false);
 	  break;
       }
 
@@ -364,11 +378,13 @@ static uint32_t __ALIGNED(STACKSIZE*sizeof(uint32_t)) stack_buffer[STACKSIZE];
 static ROM TaskParameters_t p =
   { communicator_runnable, "COM",
   STACKSIZE, 0,
-  COMMUNICATOR_START_PRIORITY, stack_buffer,
+  STANDARD_TASK_PRIORITY, stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE,  portMPU_REGION_READ_WRITE },
-      { (void *)&soft_iron_compensator, SOFT_IRON_DATA_SIZE, portMPU_REGION_READ_WRITE},
-      { 0, 0, 0 } } };
+      { (void *)0x080C0000, 0x00040000, portMPU_REGION_READ_WRITE}, // EEPROM
+      { &temporary_mag_calculation_data, 8192, portMPU_REGION_READ_WRITE}
+    }
+  };
 
 COMMON RestrictedTask communicator_task (p);
 

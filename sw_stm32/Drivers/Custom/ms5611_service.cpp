@@ -71,8 +71,8 @@ void getPressure (void*)
 
 	  if ( static_ms5611_available)
 	    {
-	      output_data.m.static_pressure = ms5611_static.get_pressure ();
-	      output_data.m.static_sensor_temperature =
+	      output_data.obs.m.static_pressure = ms5611_static.get_pressure ();
+	      output_data.obs.m.static_sensor_temperature =
 		  ms5611_static.get_temperature ();
 	    }
 	}

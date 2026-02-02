@@ -106,9 +106,10 @@ void USART_1_Init (void)
   HAL_UART_Receive_IT(&huart1, &uart1_rx_byte, 1); // Activate interrupt for reception
 }
 
-void USART_1_transmit_DMA( uint8_t *pData, uint16_t Size)
+bool USART_1_transmit_DMA( uint8_t *pData, uint16_t Size)
 {
-  HAL_UART_Transmit_DMA (&huart1, pData, Size);
+  HAL_StatusTypeDef status = HAL_UART_Transmit_DMA (&huart1, pData, Size);
+  return ( status == HAL_OK);
 }
 
 bool UART1_Receive(uint8_t *pRxByte, uint32_t timeout)

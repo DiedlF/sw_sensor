@@ -41,6 +41,13 @@
 #include "compass_calibrator_3D.h"
 #endif
 #include "SHA256.h"
+#include "EEPROM_data_file_implementation.h"
+#include "persistent_data_file.h"
+#include "system_state.h"
+#include "reminder_flag.h"
+
+extern EEPROM_file_system permanent_data_file;
+COMMON reminder_flag perform_after_landing_actions;
 
 ROM uint8_t SHA_INITIALIZATION[] = "presently a well-known string";
 
@@ -50,7 +57,6 @@ extern uint32_t UNIQUE_ID[4];
 COMMON char *crashfile;
 COMMON unsigned crashline;
 COMMON bool dump_sensor_readings;
-COMMON bool landing_detected;
 
 COMMON FATFS fatfs;
 extern SD_HandleTypeDef hsd;
@@ -65,56 +71,18 @@ COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE + RESERVE];
 //!< format date and time from sat fix data
 char * format_date_time( char * target)
 {
-  format_2_digits( target, output_data.c.year);
-  format_2_digits( target, output_data.c.month);
-  format_2_digits( target, output_data.c.day);
+  format_2_digits( target, output_data.obs.c.year);
+  format_2_digits( target, output_data.obs.c.month);
+  format_2_digits( target, output_data.obs.c.day);
   *target ++ = '_';
-  format_2_digits( target, output_data.c.hour);
-  format_2_digits( target, output_data.c.minute);
-  format_2_digits( target, output_data.c.second);
+  format_2_digits( target, output_data.obs.c.hour);
+  format_2_digits( target, output_data.obs.c.minute);
+  format_2_digits( target, output_data.obs.c.second);
   *target=0;
   return target;
 }
 
 extern RestrictedTask uSD_handler_task; // will come downwards ...
-
-#if ACTIVATE_MAGNETIC_3D_MECHANIM
-void read_magnetic_3D_data( void)
-{
-  FIL the_file;
-  FRESULT fresult;
-  UINT bytes_read;
-
-  // try to open mag 3D calibration file
-  fresult = f_open (&the_file, (char *)"mag_3D_data.bin", FA_READ);
-  if( fresult != FR_OK)
-    return;
-
-  unsigned size = sizeof(float) * compass_calibrator_3D_t::AXES * compass_calibrator_3D_t::PARAMETERS;
-  fresult = f_read( &the_file, mem_buffer, size, &bytes_read);
-  if( (fresult != FR_OK) || (bytes_read  != size) )
-    compass_calibrator_3D.set_current_parameters( (const float *)mem_buffer);
-
-  f_close(&the_file);
-}
-
-void write_magnetic_3D_data( void)
-{
-  const void * data = compass_calibrator_3D.get_current_parameters();
-  if( data == 0)
-    return;
-
-  FRESULT fresult;
-  FIL fp;
-  UINT writtenBytes = 0;
-  fresult = f_open (&fp, "mag_3D_data.bin", FA_CREATE_ALWAYS | FA_WRITE);
-  if (fresult != FR_OK)
-    return;
-
-  fresult = f_write (&fp, data, sizeof(float) * compass_calibrator_3D_t::AXES * compass_calibrator_3D_t::PARAMETERS, &writtenBytes);
-  f_close(&fp);
-}
-#endif
 
 //!< write crash dump file and force MPU reset via watchdog
 void write_crash_dump( void)
@@ -288,53 +256,15 @@ extern RecorderDataType myTraceBuffer;
   fresult = f_write (&fp, (uint8_t*) &output_data, sizeof( output_data_t), &writtenBytes);
   f_close( &fp);
 
-  f_mount ( 0, "", 0); // unmount uSD
-
 emergency_exit:
-
-  delay( 100); // just to be sure ...
+  f_mount ( 0, "", 0); // unmount uSD
+  delay( 100);
+  HAL_SD_DeInit (&hsd);
+  delay( 100);
 
   while( true)
     /* wake watchdog */;
 }
-
-bool write_soft_iron_parameters( void)
-{
-  FRESULT fresult;
-  FIL fp;
-  UINT bytes_written;
-
-  const computation_float_type * data = soft_iron_compensator.get_current_parameters();
-  if( data == 0)
-    return true;
-
-  fresult = f_open (&fp, (char *)"soft_iron_parameters.f30", FA_CREATE_ALWAYS | FA_WRITE);
-  if (fresult != FR_OK)
-    return true;
-
-  f_write (&fp,(const char *)data, soft_iron_compensator.get_parameters_size(), &bytes_written);
-  f_close( &fp);
-  return false;
-}
-
-void read_soft_iron_parameters( void)
-{
-  FIL the_file;
-  FRESULT fresult;
-  UINT bytes_read;
-
-  // try to open mag 3D calibration file
-  fresult = f_open (&the_file, (char *)"soft_iron_parameters.f30", FA_READ);
-  if( fresult != FR_OK)
-    return;
-
-  unsigned size = soft_iron_compensator.get_parameters_size();
-  fresult = f_read( &the_file, mem_buffer, size, &bytes_read);
-  if( (fresult == FR_OK) && (bytes_read  == size) )
-    soft_iron_compensator.set_current_parameters((float *)mem_buffer);
-  f_close(&the_file);
-}
-
 
 bool write_EEPROM_dump( const char * filename)
 {
@@ -430,6 +360,48 @@ bool write_EEPROM_dump( const char * filename)
 	}
       }
 
+  float32_t mag_calib_param[4*3];
+
+  if( permanent_data_file.retrieve_data( MAG_SENSOR_XFER_MATRIX, 4*3, (uint32_t *)mag_calib_param))
+    {
+      for( unsigned i=0; i< 4*3; ++i)
+	{
+	  next = buffer;
+	  append_string( next, "Mag_");
+	  utox( next, i, 1);
+	  append_string( next, " = ");
+	  next = my_ftoa (next, mag_calib_param[i]);
+	  newline( next);
+	  sha.update( (uint8_t *)buffer, next-buffer);
+	  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
+	  if( (fresult != FR_OK) || (writtenBytes != (next-buffer)))
+	    {
+	      f_close(&fp);
+	      return fresult; // give up ...
+	    }
+	}
+    }
+
+  if( permanent_data_file.retrieve_data( EXT_MAG_SENSOR_XFER_MATRIX, 4*3, (uint32_t *)mag_calib_param))
+    {
+      for( unsigned i=0; i< 4*3; ++i)
+	{
+	  next = buffer;
+	  append_string( next, "XMag_");
+	  utox( next, i, 1);
+	  append_string( next, " = ");
+	  next = my_ftoa (next, mag_calib_param[i]);
+	  newline( next);
+	  sha.update( (uint8_t *)buffer, next-buffer);
+	  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
+	  if( (fresult != FR_OK) || (writtenBytes != (next-buffer)))
+	    {
+	      f_close(&fp);
+	      return fresult; // give up ...
+	    }
+	}
+    }
+
   uint16_t option = *(uint16_t *) 0x1fffc000;
   next = buffer;
   append_string( next, "Option bytes = ");
@@ -450,15 +422,15 @@ bool write_EEPROM_dump( const char * filename)
   for( unsigned i=0; i<16; ++i)
       utox( next, (uint32_t)(digest[i]), 2);
   newline(next);
+
   for( unsigned i=0; i<16; ++i)
       utox( next, (uint32_t)(digest[i+16]), 2);
-  newline(next);
 
   newline(next);
-  (void)f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
 
+  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
   f_close(&fp);
-  return FR_OK;
+  return fresult;
 }
 
 //!< find software image file and load it if applicable
@@ -637,13 +609,11 @@ read_software_update (void)
 void uSD_handler_runnable (void*)
 {
 restart:
-  // ...just to be sure ...
-  ensure_EEPROM_parameter_integrity();
-  delay(1000); //Dirty fix for issue #177
-
   HAL_SD_DeInit (&hsd);
   if(! BSP_PlatformIsDetected())
     {
+      recover_and_initialize_flash();
+      (void) ensure_EEPROM_parameter_integrity();
       setup_file_handling_completed.signal(); // give up waiting for configuration
       watchdog_activator.signal(); // now start the watchdog
 
@@ -695,6 +665,9 @@ restart:
       copy_function_address();
       }
 
+  recover_and_initialize_flash();
+  (void) ensure_EEPROM_parameter_integrity();
+
   drop_privileges(); // go protected
 
   watchdog_activator.signal(); // now start the watchdog
@@ -716,12 +689,6 @@ restart:
   dump_sensor_readings = (fresult == FR_OK);
   f_close( &the_file); // as this is just a dummy file
 
-#if ACTIVATE_MAGNETIC_3D_MECHANIM
-  read_magnetic_3D_data(); // read 3D data if existent
-#endif
-
-  read_soft_iron_parameters(); // if they exist
-
   FILINFO filinfo;
   fresult = f_stat("logger", &filinfo);
   if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)==0))
@@ -735,18 +702,23 @@ restart:
   char out_filename[30];
 
   // wait until a GNSS timestamp is available.
-  while (output_data.c.sat_fix_type == 0)
+  while (output_data.obs.c.sat_fix_type == 0)
     {
       if( crashfile && ! user_initiated_reset)
 	  write_crash_dump();
       delay (100);
     }
 
-  uint32_t last_eeprom_write_tick = EE_GetLastChangeTickTime();
-
-  // repeat writing logfiles for all successive flights
+  // repeat writing log files for all successive flights
   while(true)
     {
+      // here when opening a new output file we decide if the external magnetometer is active
+      // if this state changes while we are logging we do not re-decide
+      unsigned recorder_data_size =
+	  (system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
+	  ? sizeof( extended_observations_type)
+	  : sizeof( observations_type);
+
       UINT writtenBytes = 0;
       uint8_t *buf_ptr = mem_buffer;
 
@@ -761,7 +733,7 @@ restart:
 
       *next++ = '.';
       *next++  = 'f';
-      format_2_digits( next, sizeof(observations_type) / sizeof(float));
+      format_2_digits( next, recorder_data_size / sizeof(float));
 
       fresult = f_open (&the_file, out_filename, FA_CREATE_ALWAYS | FA_WRITE);
       if (fresult != FR_OK)
@@ -786,10 +758,16 @@ restart:
 	  notify_take (true); // wait for synchronization by from communicator OR by the crash detection mechanism
 
 	  if( crashfile && ! user_initiated_reset)
-	    write_crash_dump();
+	    {
+	      // write remaining logger data and close the file
+	      (void) f_write (&the_file, mem_buffer, buf_ptr - mem_buffer, &writtenBytes);
+	      f_close(&the_file);
 
-	  memcpy (buf_ptr, (uint8_t*) &output_data.m, sizeof(observations_type));
-	  buf_ptr += sizeof(observations_type);
+	      write_crash_dump();
+	    }
+
+	  memcpy (buf_ptr, (uint8_t*) &(output_data.obs), recorder_data_size);
+	  buf_ptr += recorder_data_size;
 
 	  if (buf_ptr < mem_buffer + MEM_BUFSIZE)
 	    continue; // buffer only filled partially
@@ -822,31 +800,11 @@ restart:
 	      sync_counter = 0;
 	      f_sync (&the_file);
 
-	      if( landing_detected)
+	      if( perform_after_landing_actions.test_and_reset())
 		{
-		  landing_detected = false;
-
 		  f_close(&the_file);
-
 		  delay(100); // just to be sure everything is written
-
-#if ACTIVATE_MAGNETIC_3D_MECHANIM
-		  write_magnetic_3D_data();
-#endif
-		  write_soft_iron_parameters();
-
-		  /* Check if EEPROM data changed recently */
-		  if (EE_GetLastChangeTickTime() != last_eeprom_write_tick)
-		    {
-		      /* Wait at least three seconds after a data change has been observed before creating a new dump file.
-		       * This prevents that an identical filename is used again. */
-		      if (xTaskGetTickCount() > (last_eeprom_write_tick + (3 * configTICK_RATE_HZ)))
-			{
-			    last_eeprom_write_tick = EE_GetLastChangeTickTime();
-			}
-		    }
-
-		  break; /* break inner while loop and start again, which will start a new eeprom dump / logfile */
+		  break; /* break inner while loop and start again, which will start a new set of logfiles */
 		}
 	    }
 	}
@@ -854,15 +812,16 @@ restart:
 }
 
 #define STACKSIZE 2048
-static uint32_t __ALIGNED(STACKSIZE*4) stack_buffer[STACKSIZE];
+uint32_t __ALIGNED(STACKSIZE*4) uSD_stack_buffer[STACKSIZE];
 
 static TaskParameters_t p =
   { uSD_handler_runnable, "uSD",
   STACKSIZE, 0,
-  LOGGER_PRIORITY + portPRIVILEGE_BIT, stack_buffer,
+  LOGGER_PRIORITY + portPRIVILEGE_BIT,
+  uSD_stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { (void *)&soft_iron_compensator, SOFT_IRON_DATA_SIZE, portMPU_REGION_READ_WRITE},
+      { 0, 0, 0},
       { 0, 0, 0}
       } 
     };

@@ -26,18 +26,15 @@
 #define SRC_SYSTEM_CONFIGURATION_H_
 
 #include "persistent_data.h"
-#include "eeprom.h"
 #include "git-commit-version.h"
 
-#define INCLUDING_NANO			1
+#define RUN_FLASH_WRITE_TESTER		0
 
 #define USE_HARDWARE_EEPROM		1
 #define MEASURE_GNSS_REFRESH_TIME	0
 #define ACTIVATE_USB_NMEA		1
 #define CAN_RX_ERROR_REPORT		1
-#define CRASFILE_ON_USER_RESET		1
-#define LIMIT_DENSITY_CORRECTION(x) 	ASSERT(x < 1.15 && x > 0.85);
-#define WITH_EXTERNAL_IMU		0
+#define CRASFILE_ON_USER_RESET		0
 
 #define RUN_GNSS			1
 #define RUN_MTi_1_MODULE 		1
@@ -76,11 +73,8 @@
 
 #define LOGGER_PRIORITY			STANDARD_TASK_PRIORITY + 1
 
-#define COMMUNICATOR_START_PRIORITY 	STANDARD_TASK_PRIORITY
-
 #define MAG_CALCULATOR_PRIORITY		STANDARD_TASK_PRIORITY
-
-#define EEPROM_BACKGROUND_PRIORITY 	STANDARD_TASK_PRIORITY
+#define EEPROM_WRITER_PRIORITY	 	STANDARD_TASK_PRIORITY
 
 // ISR priorities
 
@@ -93,14 +87,17 @@
 
 // more parameters
 
-#define NMEA_START_DELAY		10000
+#define FLASH_ISR_TIMEOUT		2
+#define FLASH_ERASE_TIMEOUT		2000
+#define FLASH_ACCESS_TIMEOUT		10
+#define MAXIMUM_PAGE_ERASE_TIME 	2000
 
 #define NMEA_REPORTING_PERIOD		250 // period in clock ticks for NMEA output
 #define NMEA_DECIMATION_RATIO		6  // slow-down factor for the slow properties
 
 #define ACTIVATE_FPU_EXCEPTION_TRAP 	1 // I want to be SET !
 #define SET_FPU_FLUSH_TO_ZERO		1
-#define ACTIVATE_WATCHDOG		1
+#define ACTIVATE_WATCHDOG		1 // todo patch
 #define WATCHDOG_STATISTICS 		0
 #define TRACE_ISR			0
 #define INJECT_ERROR_NUMBER		0

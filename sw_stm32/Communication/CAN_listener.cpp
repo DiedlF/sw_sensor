@@ -30,6 +30,8 @@
 #include "CAN_distributor.h"
 #include "NMEA_format.h"
 #include "watchdog_handler.h"
+#include "system_state.h"
+#include "communicator.h"
 
 #define CAN_Id_Send_Config_Value 0x12f
 
@@ -158,46 +160,37 @@ bool get_vario_mode_updates(float32_t &value)
 void
 CAN_listener_task_runnable (void*)
 {
+  TickType_t magnetometer_last_heard=0;
+
   CAN_distributor_entry my_entry
     { 0x040F, 0x0402, &can_packet_q }; // Listen for "Set System Wide Config Item" on CAN
   subscribe_CAN_messages (my_entry);
 
-#if WITH_EXTERNAL_IMU
-  my_entry.ID_value = 0x160;
-  my_entry.ID_mask = 0x0ff0;
+  my_entry.ID_value = 0x070;
+  my_entry.ID_mask = 0x0fff;
   subscribe_CAN_messages (my_entry);
-#endif
 
   CANpacket p;
   while (true)
     {
-      can_packet_q.receive(p);
 
-#if WITH_EXTERNAL_IMU
-
-	switch (p.id)
+      bool rx_ed = can_packet_q.receive(p, 100);
+      if( rx_ed)
+	{
+	if ( (p.id == 0x070) && (p.dlc == 6))
 	  {
-	  case 0x118:
-	    output_data.extra.acc[0] = p.data_sh[0] * XTRA_ACC_SCALE;
-	    output_data.extra.acc[1] = p.data_sh[1] * XTRA_ACC_SCALE;
-	    output_data.extra.acc[2] = p.data_sh[2] * XTRA_ACC_SCALE;
-	    output_data.extra.temperature = TEMP_CONVERSION( p.data_sh[3]);
-	    break;
-	  case 0x119:
-	    output_data.extra.gyro[0] = p.data_sh[0] * XTRA_GYRO_SCALE;
-	    output_data.extra.gyro[1] = p.data_sh[1] * XTRA_GYRO_SCALE;
-	    output_data.extra.gyro[2] = p.data_sh[2] * XTRA_GYRO_SCALE;
-	    break;
-	  case 0x11a:
-	    output_data.extra.mag[0] = p.data_sh[0] * XTRA_MAG_SCALE;
-	    output_data.extra.mag[1] = p.data_sh[1] * XTRA_MAG_SCALE;
-	    output_data.extra.mag[2] = p.data_sh[2] * XTRA_MAG_SCALE;
-	    break;
-	  default:
-	    break;
+	    output_data.obs.external_magnetometer_reading[0] = (float32_t)(p.data_sh[0]) * 0.01333333f; // 75LSB / uTesla
+	    output_data.obs.external_magnetometer_reading[1] = (float32_t)(p.data_sh[1]) * 0.01333333f;
+	    output_data.obs.external_magnetometer_reading[2] = (float32_t)(p.data_sh[2]) * 0.01333333f;
+	    update_system_state_set( EXTERNAL_MAGNETOMETER_AVAILABLE);
+	    magnetometer_last_heard = xTaskGetTickCount();
 	  }
-
-#endif
+	}
+      else
+	{
+	  if( xTaskGetTickCount() - magnetometer_last_heard > 100)
+	    update_system_state_clear( EXTERNAL_MAGNETOMETER_AVAILABLE);
+	}
 
       if(( p.id & 0x40F) == 0x402) // = "set system wide config item"
         switch (p.data_h[0])
@@ -278,7 +271,7 @@ static ROM TaskParameters_t p =
       0,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { 0, 0, 0 },
+      { (void *)0x080C0000, 0x00040000, portMPU_REGION_READ_WRITE}, // EEPROM
       { 0, 0, 0 }
     }
   };

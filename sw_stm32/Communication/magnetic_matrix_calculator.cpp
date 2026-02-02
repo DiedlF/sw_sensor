@@ -3,36 +3,37 @@
 #include "main.h"
 #include "FreeRTOS_wrapper.h"
 #include "embedded_math.h"
-#include "soft_iron_compensator.h"
 
-//#include "magnetic_matrix_calculator.h"
-//#include "magnetic_induction_report.h"
-//COMMON compass_calibrator_3D_t compass_calibrator_3D;
+#include "compass_calibrator_3D.h"
+#include "magnetic_matrix_calculator.h"
 
-COMMON Semaphore calculation_trigger;
+#define MAG_CALC_DATA_SIZE 8192
+magnetic_calculation_data_t __attribute__((section(".mag_calc_data"))) temporary_mag_calculation_data;
+compass_calibrator_3D_t __attribute__((section(".mag_calc_data"))) compass_calibrator_3D( temporary_mag_calculation_data);
+compass_calibrator_3D_t __attribute__((section(".mag_calc_data"))) external_compass_calibrator_3D( temporary_mag_calculation_data);
 
-void trigger_soft_iron_compensator_calculation(void)
+COMMON Queue <bool> calculation_request( 4);
+
+void trigger_compass_calibrator_3D_calculation( bool use_external_magnetometer)
 {
-  calculation_trigger.signal();
-}
-
-void trigger_compass_calibrator_3D_calculation(void)
-{
-  calculation_trigger.signal();
+  calculation_request.send( use_external_magnetometer);
 }
 
 static void magnetic_calculator_runnable ( void *)
 {
+  bool do_calculate_external_mag;
   while( true)
     {
-      calculation_trigger.wait();
-      soft_iron_compensator.calculate();
+      calculation_request.receive( do_calculate_external_mag);
+      if( do_calculate_external_mag)
+	(void) external_compass_calibrator_3D.calculate();
+      else
+	(void) compass_calibrator_3D.calculate();
     }
 }
 
 #define STACKSIZE 256
 static uint32_t __ALIGNED(STACKSIZE*sizeof(uint32_t)) stack_buffer[STACKSIZE];
-soft_iron_compensator_t __ALIGNED( SOFT_IRON_DATA_SIZE) soft_iron_compensator;
 
 static TaskParameters_t p =
 {
@@ -44,7 +45,7 @@ static TaskParameters_t p =
   stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { (void *)&soft_iron_compensator, SOFT_IRON_DATA_SIZE, portMPU_REGION_READ_WRITE},
+      { &temporary_mag_calculation_data, MAG_CALC_DATA_SIZE, portMPU_REGION_READ_WRITE},
       { 0, 0, 0}
     }
 };

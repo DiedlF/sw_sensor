@@ -25,6 +25,7 @@
 #define COMMUNICATOR_H_
 
 #include "data_structures.h"
+#include "reminder_flag.h"
 
 typedef enum
 {
@@ -40,5 +41,6 @@ typedef enum
 extern output_data_t output_data;
 extern RestrictedTask communicator_task;
 extern Queue < communicator_command_t> communicator_command_queue;
+extern reminder_flag landing_detected;
 
 #endif /* COMMUNICATOR_H_ */

@@ -67,7 +67,7 @@ void CAN_RX_task_code (void*)
     }
 }
 
-Task CAN_RX_task (CAN_RX_task_code, "CAN_RX");
+Task CAN_RX_task (CAN_RX_task_code, "CAN_DISTRB");
 
 
 #if RUN_CAN_DISTRIBUTION_TEST

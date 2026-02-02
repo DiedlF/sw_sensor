@@ -147,12 +147,6 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
-  .framebuffer :
-  {
-    *(framebuffer)
-    . = ALIGN( 0x10000);
-  } >RAM
-
   /* Used by the startup to initialize data */
   _sidata = LOADADDR(.data);
 
@@ -200,6 +194,13 @@ SECTIONS
     PROVIDE ( _end = . );
     . = . + _Min_Heap_Size;
     . = ALIGN(8);
+  } >RAM
+
+  .mag_calc_data :
+  {
+    . = ALIGN(8192);
+        KEEP(*(.mag_calc_data))
+        KEEP(*(.mag_calc_data*))
   } >RAM
 
   /* Core Coupled Memory CCM section */
