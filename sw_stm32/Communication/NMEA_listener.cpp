@@ -78,7 +78,7 @@ void NMEA_listener_task_runnable( void *)
 		      if (strncmp(rxNMEASentence,"$PLARS,H,MC,",12) == 0)
 			{
 			  ptr = &rxNMEASentence[12];
-			  value = my_atof(ptr);
+			  value = atof(ptr);
 			  can_packet.data_h[0] = SYSWIDECONFIG_ITEM_ID_MC;
 			  can_packet.data_h[1] = 0;
 			  can_packet.data_f[1] = value;
@@ -87,7 +87,7 @@ void NMEA_listener_task_runnable( void *)
 		      else if (strncmp(rxNMEASentence,"$PLARS,H,BAL,",13) == 0)
 			{
 			  ptr = &rxNMEASentence[13];
-			  value = my_atof(ptr);
+			  value = atof(ptr);
 			  can_packet.data_h[0] = SYSWIDECONFIG_ITEM_ID_BALLAST_FRACTION;
 			  can_packet.data_h[1] = 0;
 			  can_packet.data_f[1] = value;
@@ -96,7 +96,7 @@ void NMEA_listener_task_runnable( void *)
 		      else if (strncmp(rxNMEASentence,"$PLARS,H,BUGS,",14) == 0)
 			{
 			  ptr = &rxNMEASentence[14];
-			  value = my_atof(ptr);
+			  value = atof(ptr);
 			  if(value < 0.0f)
 			    {
 			      value = 0;
@@ -114,7 +114,7 @@ void NMEA_listener_task_runnable( void *)
 		      else if (strncmp(rxNMEASentence,"$PLARS,H,QNH,",13) == 0)
 			{
 			  ptr = &rxNMEASentence[13];
-			  value = my_atof(ptr);
+			  value = atof(ptr);
 			  can_packet.data_h[0] = SYSWIDECONFIG_ITEM_ID_QNH;
 			  can_packet.data_h[1] = 0;
 			  can_packet.data_f[1] = value;

@@ -670,18 +670,18 @@ restart:
   recover_and_initialize_flash();
   uSD_handler_task.set_priority(LOGGER_PRIORITY); // set normal priority
 
-  (void) ensure_EEPROM_parameter_integrity();
-
-  drop_privileges(); // go protected
-
-  watchdog_activator.signal(); // now start the watchdog
-
   // read configuration file if it is present on the SD card
   bool init_file_read = read_init_file( "larus_sensor_config.ini");
 
   // if it has been used: rename it to prevent overwriting something in the future
   if( init_file_read)
     f_rename ("larus_sensor_config.ini", "larus_sensor_config.ini.used");
+
+  (void) ensure_EEPROM_parameter_integrity();
+
+  drop_privileges(); // go protected
+
+  watchdog_activator.signal(); // now start the watchdog
 
   setup_file_handling_completed.signal();
 
