@@ -28,7 +28,7 @@
 #include "persistent_data.h"
 #include "git-commit-version.h"
 
-#define RUN_FLASH_WRITE_TESTER		1
+#define RUN_FLASH_WRITE_TESTER		0
 
 #define USE_HARDWARE_EEPROM		1
 #define MEASURE_GNSS_REFRESH_TIME	0
@@ -97,7 +97,7 @@
 
 #define ACTIVATE_FPU_EXCEPTION_TRAP 	1 // I want to be SET !
 #define SET_FPU_FLUSH_TO_ZERO		1
-#define ACTIVATE_WATCHDOG		1 // todo patch
+#define ACTIVATE_WATCHDOG		1
 #define WATCHDOG_STATISTICS 		0
 #define TRACE_ISR			0
 #define INJECT_ERROR_NUMBER		0
