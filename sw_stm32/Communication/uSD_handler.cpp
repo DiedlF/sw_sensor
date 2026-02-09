@@ -609,6 +609,7 @@ read_software_update (void)
 void uSD_handler_runnable (void*)
 {
 restart:
+
   HAL_SD_DeInit (&hsd);
   if(! BSP_PlatformIsDetected())
     {
@@ -665,7 +666,10 @@ restart:
       copy_function_address();
       }
 
+  uSD_handler_task.set_priority(configMAX_PRIORITIES - 1); // set it to highest priority
   recover_and_initialize_flash();
+  uSD_handler_task.set_priority(LOGGER_PRIORITY); // set normal priority
+
   (void) ensure_EEPROM_parameter_integrity();
 
   drop_privileges(); // go protected
