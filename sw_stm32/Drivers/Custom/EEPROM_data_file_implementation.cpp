@@ -23,10 +23,10 @@ extern Queue <flash_write_order> flash_command_queue;
 
 void FLASH_write( uint32_t * dest, uint32_t * source, unsigned n_words)
 {
+#if 0 // asynchronous write
   flash_write_order cmd;
   bool result;
 
-#if 0 // asynchronous write
   while( n_words --)
     {
     cmd.dest=dest++;
