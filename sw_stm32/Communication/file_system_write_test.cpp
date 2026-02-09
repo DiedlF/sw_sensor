@@ -16,16 +16,25 @@ static void runnable( void *)
   recover_and_initialize_flash();
   uint64_t time;
 
-  while (true)
-    {
-     for( write_test_counter=0; write_test_counter < 9000; ++write_test_counter)
-      {
-	time = getTime_usec();
-	success = permanent_data_file.store_data ( 0xa5, 2, &time);
-	ASSERT( success);
-      }
-     recover_and_initialize_flash();
-    }
+  uint8_t loop_count;
+  success = permanent_data_file.retrieve_data(0xfe, loop_count);
+  if( not success)
+    loop_count = 0;
+
+  if( loop_count == 5)
+    suspend();
+
+  for( write_test_counter=0; write_test_counter < 9000; ++write_test_counter)
+  {
+    time = getTime_usec();
+    success = permanent_data_file.store_data ( 0xa5, 2, &time);
+    ASSERT( success);
+  }
+
+  ++loop_count;
+  success = permanent_data_file.store_data ( 0xa5, loop_count);
+  delay(100);
+  ASSERT ( 0);
 }
 
 #define STACKSIZE 128
