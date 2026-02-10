@@ -23,10 +23,10 @@ extern Queue <flash_write_order> flash_command_queue;
 
 void FLASH_write( uint32_t * dest, uint32_t * source, unsigned n_words)
 {
+#if 0 // asynchronous write
   flash_write_order cmd;
   bool result;
 
-#if 0 // asynchronous write
   while( n_words --)
     {
     cmd.dest=dest++;
@@ -43,7 +43,7 @@ void FLASH_write( uint32_t * dest, uint32_t * source, unsigned n_words)
     {
       status = HAL_FLASH_Program_IT( TYPEPROGRAM_WORD, (uint32_t)dest++, *source++);
       ASSERT( status == HAL_OK);
-      bool no_timeout = flash_isr_to_task.wait( INFINITE_WAIT);
+      bool no_timeout = flash_isr_to_task.wait( FLASH_ACCESS_TIMEOUT);
       ASSERT( no_timeout);
     }
 
@@ -170,12 +170,7 @@ bool write_EEPROM_value (EEPROM_PARAMETER_ID id, float value)
 {
   ASSERT (permanent_data_file.in_use());
   bool success = permanent_data_file.store_data( id, 1, &value);
-  if( not success)
-    {
-      file_system_page_swap();
-      return not permanent_data_file.store_data( id, 1, &value);
-    }
-  return false; // = OK
+  return success;
 }
 
 //!< interface to legacy read function

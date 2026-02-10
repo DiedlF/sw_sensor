@@ -146,7 +146,7 @@ bool read_init_file( const char * filename)
       if( ! is_number_start( *position))
 	continue; // found some form of garbage
 
-      float value = my_atof( position);
+      float value = atof( position);
 
       if( persistent_parameter->is_an_angle)
 	{

@@ -3,6 +3,7 @@
 #include "my_assert.h"
 #include "EEPROM_data_file_implementation.h"
 #include "common.h"
+#include "main.h"
 
 #if RUN_FLASH_WRITE_TESTER
 
@@ -13,19 +14,34 @@ COMMON unsigned write_test_counter;
 static void runnable( void *)
 {
   bool success;
-  recover_and_initialize_flash();
+  delay( 1000);
   uint64_t time;
 
-  while (true)
-    {
-     for( write_test_counter=0; write_test_counter < 9000; ++write_test_counter)
-      {
-	time = getTime_usec();
-	success = permanent_data_file.store_data ( 0xa5, 2, &time);
-	ASSERT( success);
-      }
-     recover_and_initialize_flash();
-    }
+  uint8_t loop_count;
+  success = permanent_data_file.retrieve_data(0xfe, loop_count);
+  if( not success)
+    loop_count = 0;
+
+  if( loop_count == 5)
+    suspend();
+
+  for( write_test_counter=0; write_test_counter < 9000; ++write_test_counter)
+  {
+    time = getTime_usec();
+    success = permanent_data_file.store_data ( 0xa5, 2, &time);
+    ASSERT( success);
+
+    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
+	  ((( write_test_counter / 100) & 1) == 0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+  }
+
+  suspend();
+
+  ++loop_count;
+  success = permanent_data_file.store_data ( 0xfe, loop_count);
+  ASSERT( success);
+  delay(100);
+  ASSERT ( 0);
 }
 
 #define STACKSIZE 128

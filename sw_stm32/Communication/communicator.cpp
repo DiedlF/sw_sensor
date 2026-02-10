@@ -99,8 +99,6 @@ void communicator_runnable (void*)
   uint64_t getTime_usec(void);
   uint64_t time = getTime_usec();
 
-  float value = configuration (HORIZON) ;
-
   time = getTime_usec() - time;
 
   organizer_t organizer;
