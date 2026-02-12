@@ -6,16 +6,16 @@
 #include "flexible_log_file.h"
 using namespace std;
 
-class flexible_log_file_stream_t : public flexible_log_file_t
+class flexible_log_file_implementation_t : public flexible_log_file_t
 {
 public:
 
-  flexible_log_file_stream_t ( uint32_t * buf, unsigned size_words)
+  flexible_log_file_implementation_t ( uint32_t * buf, unsigned size_words)
   : flexible_log_file_t( buf, size_words)
   {
   }
 
-  virtual ~flexible_log_file_stream_t()
+  virtual ~flexible_log_file_implementation_t()
   {
     close();
   }

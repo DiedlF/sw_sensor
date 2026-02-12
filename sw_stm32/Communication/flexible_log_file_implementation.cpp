@@ -2,14 +2,14 @@
 #include <flexible_log_file_implementation.h>
 #include "CRC16.h"
 
-bool flexible_log_file_stream_t::open (char *file_name)
+bool flexible_log_file_implementation_t::open (char *file_name)
 {
   FRESULT fresult;
   fresult = f_open (&out_file, (const TCHAR*)file_name, FA_CREATE_ALWAYS | FA_WRITE);
   return (fresult == FR_OK);
 }
 
-bool flexible_log_file_stream_t::close( void)
+bool flexible_log_file_implementation_t::close( void)
 {
   UINT writtenBytes = 0;
   f_write( &out_file, (const char *)flexible_log_file_t::buffer, (flexible_log_file_t::write_pointer - flexible_log_file_t::buffer) * sizeof( uint32_t), &writtenBytes);
@@ -17,7 +17,7 @@ bool flexible_log_file_stream_t::close( void)
   return true;
 }
 
-bool flexible_log_file_stream_t::write_block (uint32_t *p_data, uint32_t size_words)
+bool flexible_log_file_implementation_t::write_block (uint32_t *p_data, uint32_t size_words)
 {
   UINT writtenBytes = 0;
   if( write_pointer + size_words > buffer_end)
