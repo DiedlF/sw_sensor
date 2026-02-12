@@ -130,25 +130,25 @@ readDataFrom_MTI (MtsspInterface *device, uint8_t *buf)
 	{
 	  float_word x;
 	  x.u = __REV (*(uint32_t*) (buf + 0x07 + 0));
-	  output_data.obs.m.acc[0] = - x.f;
+	  observations.acc[0] = - x.f;
 	  x.u = __REV (*(uint32_t*) (buf + 0x07 + 4));
-	  output_data.obs.m.acc[1] = x.f;
+	  observations.acc[1] = x.f;
 	  x.u = __REV (*(uint32_t*) (buf + 0x07 + 8));
-	  output_data.obs.m.acc[2] = - x.f;
+	  observations.acc[2] = - x.f;
 
 	  x.u = __REV (*(uint32_t*) (buf + 0x16 + 0));
-	  output_data.obs.m.gyro[0] = isnormal(x.f) ? - x.f : 0.0f;
+	  observations.gyro[0] = isnormal(x.f) ? - x.f : 0.0f;
 	  x.u = __REV (*(uint32_t*) (buf + 0x16 + 4));
-	  output_data.obs.m.gyro[1] = isnormal(x.f) ? x.f : 0.0f;
+	  observations.gyro[1] = isnormal(x.f) ? x.f : 0.0f;
 	  x.u = __REV (*(uint32_t*) (buf + 0x16 + 8));
-	  output_data.obs.m.gyro[2] = isnormal(x.f) ? - x.f : 0.0f;
+	  observations.gyro[2] = isnormal(x.f) ? - x.f : 0.0f;
 
 	  x.u = __REV (*(uint32_t*) (buf + 0x25 + 0));
-	  output_data.obs.m.mag[0] = - x.f;
+	  observations.mag[0] = - x.f;
 	  x.u = __REV (*(uint32_t*) (buf + 0x25 + 4));
-	  output_data.obs.m.mag[1] = x.f;
+	  observations.mag[1] = x.f;
 	  x.u = __REV (*(uint32_t*) (buf + 0x25 + 8));
-	  output_data.obs.m.mag[2] = - x.f;
+	  observations.mag[2] = - x.f;
 	}
     }
 }

@@ -71,13 +71,13 @@ COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE + RESERVE];
 //!< format date and time from sat fix data
 char * format_date_time( char * target)
 {
-  format_2_digits( target, output_data.obs.c.year);
-  format_2_digits( target, output_data.obs.c.month);
-  format_2_digits( target, output_data.obs.c.day);
+  format_2_digits( target, coordinates.year);
+  format_2_digits( target, coordinates.month);
+  format_2_digits( target, coordinates.day);
   *target ++ = '_';
-  format_2_digits( target, output_data.obs.c.hour);
-  format_2_digits( target, output_data.obs.c.minute);
-  format_2_digits( target, output_data.obs.c.second);
+  format_2_digits( target, coordinates.hour);
+  format_2_digits( target, coordinates.minute);
+  format_2_digits( target, coordinates.second);
   *target=0;
   return target;
 }
@@ -247,13 +247,16 @@ extern RecorderDataType myTraceBuffer;
   next = format_date_time( buffer);
   *next++ = '.';
   *next++  = 'f';
-  format_2_digits( next, sizeof( output_data_t) / sizeof(float));
+  format_2_digits( next, sizeof( state_vector_t) / sizeof(float));
 
   fresult = f_open ( &fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
   if (fresult != FR_OK)
     goto emergency_exit;
 
-  fresult = f_write (&fp, (uint8_t*) &output_data, sizeof( output_data_t), &writtenBytes);
+  fresult = f_write (&fp, (uint8_t*) &observations, sizeof( observations), &writtenBytes);
+  fresult = f_write (&fp, (uint8_t*) &coordinates,  sizeof( coordinates), &writtenBytes);
+  fresult = f_write (&fp, (uint8_t*) &system_state, sizeof( system_state), &writtenBytes);
+  fresult = f_write (&fp, (uint8_t*) &state_vector,  sizeof( state_vector), &writtenBytes);
   f_close( &fp);
 
 emergency_exit:
@@ -706,7 +709,7 @@ restart:
   char out_filename[30];
 
   // wait until a GNSS timestamp is available.
-  while (output_data.obs.c.sat_fix_type == 0)
+  while ( coordinates.sat_fix_type == 0)
     {
       if( crashfile && ! user_initiated_reset)
 	  write_crash_dump();
@@ -718,11 +721,12 @@ restart:
     {
       // here when opening a new output file we decide if the external magnetometer is active
       // if this state changes while we are logging we do not re-decide
-      unsigned recorder_data_size =
+      unsigned recorder_data_size = 13; // todo patch
+#if 0
 	  (system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
 	  ? sizeof( extended_observations_type)
 	  : sizeof( observations_type);
-
+#endif
       UINT writtenBytes = 0;
       uint8_t *buf_ptr = mem_buffer;
 
@@ -770,7 +774,7 @@ restart:
 	      write_crash_dump();
 	    }
 
-	  memcpy (buf_ptr, (uint8_t*) &(output_data.obs), recorder_data_size);
+	  memcpy (buf_ptr, (uint8_t*) &( observations), recorder_data_size); // todo patch
 	  buf_ptr += recorder_data_size;
 
 	  if (buf_ptr < mem_buffer + MEM_BUFSIZE)

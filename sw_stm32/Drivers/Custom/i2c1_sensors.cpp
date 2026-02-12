@@ -62,12 +62,12 @@ restart:
 	  && (data[0] & 0xC0) == 0)) // no error flags read
 	{
 	  uint16_t raw_data = (data[0] << 8) | data[1];
-	  output_data.obs.m.pitot_pressure = ((float) (raw_data - OFFSET) * SPAN);
+	  observations.pitot_pressure = ((float) (raw_data - OFFSET) * SPAN);
 	  update_system_state_set (PITOT_SENSOR_AVAILABLE);
 	}
       else
 	{
-	  output_data.obs.m.pitot_pressure = 0.0f;
+	  observations.pitot_pressure = 0.0f;
 	  update_system_state_clear (PITOT_SENSOR_AVAILABLE);
 	  goto restart;
 	}

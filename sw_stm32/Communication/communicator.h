@@ -38,7 +38,11 @@ typedef enum
   SOME_EEPROM_VALUE_HAS_CHANGED
 } communicator_command_t;
 
-extern output_data_t output_data;
+extern D_GNSS_coordinates_t coordinates;
+extern measurement_data_t observations;
+extern float3vector external_magnetometer;
+extern state_vector_t state_vector;
+
 extern RestrictedTask communicator_task;
 extern Queue < communicator_command_t> communicator_command_queue;
 extern reminder_flag landing_detected;

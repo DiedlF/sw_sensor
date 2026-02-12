@@ -179,9 +179,9 @@ CAN_listener_task_runnable (void*)
 	{
 	if ( (p.id == 0x070) && (p.dlc == 6))
 	  {
-	    output_data.obs.external_magnetometer_reading[0] = (float32_t)(p.data_sh[0]) * 0.01333333f; // 75LSB / uTesla
-	    output_data.obs.external_magnetometer_reading[1] = (float32_t)(p.data_sh[1]) * 0.01333333f;
-	    output_data.obs.external_magnetometer_reading[2] = (float32_t)(p.data_sh[2]) * 0.01333333f;
+	    external_magnetometer[0] = (float32_t)(p.data_sh[0]) * 0.01333333f; // 75LSB / uTesla
+	    external_magnetometer[1] = (float32_t)(p.data_sh[1]) * 0.01333333f;
+	    external_magnetometer[2] = (float32_t)(p.data_sh[2]) * 0.01333333f;
 	    update_system_state_set( EXTERNAL_MAGNETOMETER_AVAILABLE);
 	    magnetometer_last_heard = xTaskGetTickCount();
 	  }
