@@ -52,7 +52,7 @@ void GNSS_data_lock( unsigned function)
     GNSS_data_guard.release();
 }
 
-GNSS_type::GNSS_type( coordinates_t & coo) :
+GNSS_type::GNSS_type( D_GNSS_coordinates_t & coo) :
 		coordinates( coo),
 		fix_type(FIX_none),
 		num_SV(0)
