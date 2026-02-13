@@ -406,6 +406,9 @@ void communicator_runnable (void*)
 	}
 
       flex_file.append_record (BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof( observations) / sizeof(uint32_t));
+
+      if( system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
+	flex_file.append_record ( MAGNETOMETER_DATA, (uint32_t*) &external_magnetometer, sizeof( external_magnetometer) / sizeof(uint32_t));
     }
 }
 
