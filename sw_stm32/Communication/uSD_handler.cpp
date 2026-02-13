@@ -34,19 +34,15 @@
 #include "read_configuration_file.h"
 #include "communicator.h"
 #include "emergency.h"
+#include "EEPROM_data_file_implementation.h"
 #include "uSD_handler.h"
 #include "watchdog_handler.h"
 #include "magnetic_induction_report.h"
-#if ACTIVATE_MAGNETIC_3D_MECHANIM
-#include "compass_calibrator_3D.h"
-#endif
 #include "SHA256.h"
-#include "EEPROM_data_file_implementation.h"
 #include "persistent_data_file.h"
 #include "system_state.h"
 #include "reminder_flag.h"
 
-extern EEPROM_file_system permanent_data_file;
 COMMON reminder_flag perform_after_landing_actions;
 
 ROM uint8_t SHA_INITIALIZATION[] = "presently a well-known string";
@@ -65,8 +61,17 @@ extern DMA_HandleTypeDef hdma_sdio_tx;
 extern uint64_t FAT_time; //!< DOS FAT time for file usage
 
 #define MEM_BUFSIZE 2048 // bytes
-#define RESERVE 512
+#define RESERVE 1024
+
+void sync_logger(void);
+
 COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE + RESERVE];
+COMMON flexible_log_file_implementation_t flex_file(
+    (uint32_t *)mem_buffer,
+    MEM_BUFSIZE / sizeof( uint32_t),
+    (MEM_BUFSIZE+RESERVE) / sizeof( uint32_t),
+    sync_logger
+    );
 
 //!< format date and time from sat fix data
 char * format_date_time( char * target)
@@ -719,17 +724,6 @@ restart:
   // repeat writing log files for all successive flights
   while(true)
     {
-      // here when opening a new output file we decide if the external magnetometer is active
-      // if this state changes while we are logging we do not re-decide
-      unsigned recorder_data_size = 13; // todo patch
-#if 0
-	  (system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
-	  ? sizeof( extended_observations_type)
-	  : sizeof( observations_type);
-#endif
-      UINT writtenBytes = 0;
-      uint8_t *buf_ptr = mem_buffer;
-
       // generate filename based on timestamp
       char * next = out_filename;
       append_string( next, "logger/");
@@ -739,22 +733,17 @@ restart:
       write_EEPROM_dump( out_filename); // now we have date+time, start logging
       drop_privileges();
 
-      *next++ = '.';
-      *next++  = 'f';
-      format_2_digits( next, recorder_data_size / sizeof(float));
+      append_string( next, ".lrsx");
 
-      fresult = f_open (&the_file, out_filename, FA_CREATE_ALWAYS | FA_WRITE);
-      if (fresult != FR_OK)
+      bool success = flex_file.open(out_filename);
+      if ( not success)
 	{
 	  while( true)
 	    {
-	    notify_take (true); // wait for synchronization by crash detection
-	    if( crashfile)
-	      write_crash_dump();
+		notify_take (true); // wait for synchronization by crash detection
+		if( crashfile && ! user_initiated_reset)
+		  write_crash_dump();
 	    }
-	notify_take (true); // wait for synchronization by crash detection
-	if( crashfile && ! user_initiated_reset)
-	  write_crash_dump();
 	}
 
       int32_t sync_counter=0;
@@ -767,34 +756,23 @@ restart:
 
 	  if( crashfile && ! user_initiated_reset)
 	    {
-	      // write remaining logger data and close the file
-	      (void) f_write (&the_file, mem_buffer, buf_ptr - mem_buffer, &writtenBytes);
-	      f_close(&the_file);
-
+	      flex_file.close();
 	      write_crash_dump();
 	    }
 
-	  memcpy (buf_ptr, (uint8_t*) &( observations), recorder_data_size); // todo patch
-	  buf_ptr += recorder_data_size;
-
-	  if (buf_ptr < mem_buffer + MEM_BUFSIZE)
-	    continue; // buffer only filled partially
-
-	  fresult = f_write (&the_file, mem_buffer, MEM_BUFSIZE, &writtenBytes);
-	  if( ! ((fresult == FR_OK) && (writtenBytes == MEM_BUFSIZE)))
+	  success = flex_file.flush_buffer();
+	  if( not success)
 	      {
-		HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
-		while( true)
-		  {
-		  notify_take (true); // wait for synchronization by crash detection
-		  if( crashfile && ! user_initiated_reset)
-		    write_crash_dump();
-		  }
-	      }
+	      flex_file.close(); // at least: try to ...
 
-	  uint32_t rest = buf_ptr - (mem_buffer + MEM_BUFSIZE);
-	  memcpy (mem_buffer, mem_buffer + MEM_BUFSIZE, rest);
-	  buf_ptr = mem_buffer + rest;
+	      HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
+	      while( true)
+		{
+		notify_take (true); // wait for synchronization by crash detection
+		if( crashfile && ! user_initiated_reset)
+		  write_crash_dump();
+		}
+	      }
 
     #if uSD_LED_STATUS
 	  if( (sync_counter & 0x3) == 0)
@@ -806,11 +784,11 @@ restart:
 	  if( ++sync_counter >= 16)
 	    {
 	      sync_counter = 0;
-	      f_sync (&the_file);
-
+	      flex_file.sync_file();
 	      if( perform_after_landing_actions.test_and_reset())
 		{
-		  f_close(&the_file);
+		  flex_file.close();
+
 		  delay(100); // just to be sure everything is written
 		  break; /* break inner while loop and start again, which will start a new set of logfiles */
 		}
@@ -836,7 +814,7 @@ static TaskParameters_t p =
 
 COMMON RestrictedTask uSD_handler_task (p);
 
-extern "C" void sync_logger(void)
+void sync_logger(void)
   {
     uSD_handler_task.notify_give ();
   }

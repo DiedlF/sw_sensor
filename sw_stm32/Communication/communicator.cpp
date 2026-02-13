@@ -36,8 +36,9 @@
 #include "GNSS_driver.h"
 #include "CAN_distributor.h"
 #include "uSD_handler.h"
-#include "persistent_data.h"
+#include "persistent_data_file.h"
 #include "communicator.h"
+#include "flexible_log_file_implementation.h"
 
 COMMON D_GNSS_coordinates_t coordinates;
 COMMON measurement_data_t observations;
@@ -92,24 +93,33 @@ static ROM TaskParameters_t usart_3_task_param =
 
 void communicator_runnable (void*)
 {
-  vector_average_organizer_t vector_average_organizer={0};
-  vector_average_collection_t vector_average_collection={0};
-
   bool have_first_GNSS_fix = false;
   bool fine_tune_sensor_attitude = false;
 
   // wait until configuration file read if one is given
   setup_file_handling_completed.wait();
 
-  uint64_t getTime_usec(void);
-  uint64_t time = getTime_usec();
+  {
+  uint32_t file_format_version = flexible_log_file_implementation_t::FLEXIBLE_LOG_FILE_FORMAT_VERSION;
+  flex_file.append_record ( FILE_FORMAT_VERSION, &file_format_version, 1);
+  }
 
-  time = getTime_usec() - time;
+  // find all used EEPROM records and write them into the flex file
+  for( EEPROM_file_system_node::ID_t id=1; id < LOWEST_UNUSED_EEPROM_ID; ++id)
+    {
+      EEPROM_file_system_node *node = permanent_data_file.find_datum(id);
+      if( node)
+	  flex_file.append_record ( EEPROM_FILE_RECORD, (uint32_t*)node, node->size);
+    }
+
+  report_horizon_avalability();
+
+  vector_average_organizer_t vector_average_organizer={0};
+  vector_average_collection_t vector_average_collection={0};
 
   organizer_t organizer;
-
   organizer.initialize_before_measurement();
-  report_horizon_avalability();
+
 
   uint16_t GNSS_count = 0;
 
@@ -193,8 +203,9 @@ void communicator_runnable (void*)
 
   unsigned synchronizer_10Hz = 10; // re-sampling 100Hz -> 10Hz
   unsigned GNSS_watchdog = 0;
+  unsigned old_system_state = system_state;
 
-  // this is the MAIN data acquisition and processing loop
+  // this is the MAIN data acquisition and processing loop **********************************************
   while (true)
     {
       notify_take (true); // wait for synchronization by IMU @ 100 Hz
@@ -203,9 +214,6 @@ void communicator_runnable (void*)
 	{
 	  organizer.update_GNSS_data ( coordinates);
 	  GNSS_new_data_ready = false;
-	  update_system_state_set( GNSS_AVAILABLE);
-	  if( GNSS_configuration > GNSS_M9N)
-	    update_system_state_set( D_GNSS_AVAILABLE);
 
 	  if( (have_first_GNSS_fix == false) && (( coordinates.sat_fix_type & SAT_FIX) != 0))
 	    {
@@ -214,6 +222,22 @@ void communicator_runnable (void*)
 	    }
 
 	  GNSS_watchdog=0;
+
+	  switch( coordinates.sat_fix_type)
+	  {
+	    case SAT_FIX_NONE:
+		  update_system_state_clear( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
+	      break;
+	    case SAT_FIX:
+		  update_system_state_set( GNSS_AVAILABLE);
+		  update_system_state_clear( D_GNSS_AVAILABLE);
+		  flex_file.append_record ( GNSS_DATA, (uint32_t*) &coordinates,   sizeof( GNSS_coordinates_t)   / sizeof(uint32_t));
+	      break;
+	    case SAT_FIX | SAT_HEADING:
+		  update_system_state_set( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
+		  flex_file.append_record ( D_GNSS_DATA, (uint32_t*) &coordinates, sizeof( D_GNSS_coordinates_t) / sizeof(uint32_t));
+	      break;
+	  }
 	}
       else
 	{
@@ -229,7 +253,9 @@ void communicator_runnable (void*)
       organizer.on_new_pressure_data( observations.static_pressure, observations.pitot_pressure);
       organizer.update_at_100_Hz( observations, system_state, external_magnetometer);
 
-      // service external commands if any
+      flex_file.append_record ( BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof(measurement_data_t) / sizeof(uint32_t));
+
+      // service external commands if any ***************************************************************
       communicator_command_t command;
       if( communicator_command_queue.receive(command, 0))
 	{
@@ -285,6 +311,7 @@ void communicator_runnable (void*)
 	  }
 	}
 
+      // vector averaging in case of ground or air calibration activity *********************************
       if( vector_average_organizer.counter != 0)
 	{
 	  vector_average_organizer.sum += *(vector_average_organizer.source);
@@ -307,6 +334,7 @@ void communicator_runnable (void*)
 	    }
 	}
 
+      // slow 10Hz update and landing detection *********************************************************
       --synchronizer_10Hz;
       if( synchronizer_10Hz == 0)
 	{
@@ -320,7 +348,7 @@ void communicator_runnable (void*)
 	    }
 	}
 
-      // service the GNSS LED
+      // service the GNSS LED ****************************************************************************
       ++GNSS_count;
       GNSS_count &= 0xff;
 
@@ -371,7 +399,13 @@ void communicator_runnable (void*)
 	}
 
       organizer.report_data ( state_vector);
-      sync_logger (); // kick logger @ 100 Hz
+      if( system_state != old_system_state)
+	{
+	  old_system_state = system_state;
+	  flex_file.append_record (SENSOR_STATUS, &system_state, 1);
+	}
+
+      flex_file.append_record (BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof( observations) / sizeof(uint32_t));
     }
 }
 
