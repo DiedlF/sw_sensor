@@ -7,7 +7,12 @@ bool flexible_log_file_implementation_t::open (char *file_name)
 {
   FRESULT fresult;
   fresult = f_open (&out_file, (const TCHAR*)file_name, FA_CREATE_ALWAYS | FA_WRITE);
-  return (fresult == FR_OK);
+  if( fresult == FR_OK)
+    {
+      file_is_open = true;
+      return true;
+    }
+  return false;
 }
 
 bool flexible_log_file_implementation_t::close( void)
@@ -15,6 +20,7 @@ bool flexible_log_file_implementation_t::close( void)
   UINT writtenBytes = 0;
   f_write( &out_file, (const char *)flexible_log_file_t::buffer, (flexible_log_file_t::write_pointer - flexible_log_file_t::buffer) * sizeof( uint32_t), &writtenBytes);
   f_close ( &out_file);
+  file_is_open = false;
   return true;
 }
 

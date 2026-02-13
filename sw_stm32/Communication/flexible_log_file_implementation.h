@@ -14,6 +14,7 @@ public:
 
   flexible_log_file_implementation_t ( uint32_t * buf, unsigned size_words, unsigned limit_words, FPTR _signal)
   : flexible_log_file_t( buf, size_words),
+    file_is_open( false),
     buffer_absolute_limit( flexible_log_file_t::buffer + limit_words),
     signal( _signal)
   {
@@ -22,6 +23,15 @@ public:
   virtual ~flexible_log_file_implementation_t()
   {
     close();
+  }
+
+  bool append_record ( flexible_log_file_record_type type, uint32_t *data, uint32_t data_size_words)
+  {
+    if( not file_is_open)
+      return true; // silently give up
+
+    // delegate to base class
+    return flexible_log_file_t::append_record(type, data, data_size_words);
   }
 
   bool open( char * file_name) override;
@@ -33,6 +43,7 @@ private:
   bool write_block( uint32_t * begin, uint32_t size_words) override;
   void wrap_around( void);
   FIL out_file;
+  bool file_is_open;
   uint32_t *buffer_absolute_limit; // length of bile buffer incl. reserve words
   FPTR signal;
 };
