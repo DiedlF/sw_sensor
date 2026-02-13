@@ -99,19 +99,6 @@ void communicator_runnable (void*)
   // wait until configuration file read if one is given
   setup_file_handling_completed.wait();
 
-  {
-  uint32_t file_format_version = flexible_log_file_implementation_t::FLEXIBLE_LOG_FILE_FORMAT_VERSION;
-  flex_file.append_record ( FILE_FORMAT_VERSION, &file_format_version, 1);
-  }
-
-  // find all used EEPROM records and write them into the flex file
-  for( EEPROM_file_system_node::ID_t id=1; id < LOWEST_UNUSED_EEPROM_ID; ++id)
-    {
-      EEPROM_file_system_node *node = permanent_data_file.find_datum(id);
-      if( node)
-	  flex_file.append_record ( EEPROM_FILE_RECORD, (uint32_t*)node, node->size);
-    }
-
   report_horizon_avalability();
 
   vector_average_organizer_t vector_average_organizer={0};
@@ -200,6 +187,23 @@ void communicator_runnable (void*)
 	  if( (have_first_GNSS_fix == false) && ( coordinates.sat_fix_type != SAT_FIX_NONE))
 	    {
 	      have_first_GNSS_fix = true;
+
+	      // we can now start using the log file
+	      // so: write the necessary start information
+	      {
+	      uint32_t file_format_version = flexible_log_file_implementation_t::FLEXIBLE_LOG_FILE_FORMAT_VERSION;
+	      flex_file.append_record ( FILE_FORMAT_VERSION, &file_format_version, 1);
+	      }
+
+	      // find all used EEPROM records and write them into the flex file
+	      for( EEPROM_file_system_node::ID_t id=1; id < LOWEST_UNUSED_EEPROM_ID; ++id)
+	        {
+	          EEPROM_file_system_node *node = permanent_data_file.find_datum(id);
+	          if( node)
+	    	  flex_file.append_record ( EEPROM_FILE_RECORD, (uint32_t*)node, node->size);
+	        }
+
+
 	      organizer.update_magnetic_induction_data( coordinates.latitude, coordinates.longitude);
 	    }
 
@@ -221,7 +225,8 @@ void communicator_runnable (void*)
 		{
 		  already_reportet_no_GNSS_fix = true;
 		  // send one more record
-		  flex_file.append_record ( GNSS_DATA, (uint32_t*) &coordinates,   sizeof( GNSS_coordinates_t)   / sizeof(uint32_t));
+		  if( have_first_GNSS_fix) // file usable
+		    flex_file.append_record ( GNSS_DATA, (uint32_t*) &coordinates,   sizeof( GNSS_coordinates_t)   / sizeof(uint32_t));
 		}
 	      break;
 	  }
@@ -240,7 +245,8 @@ void communicator_runnable (void*)
       organizer.on_new_pressure_data( observations.static_pressure, observations.pitot_pressure);
       organizer.update_at_100_Hz( observations, system_state, external_magnetometer);
 
-      flex_file.append_record ( BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof(measurement_data_t) / sizeof(uint32_t));
+	  if( have_first_GNSS_fix) // file usable
+	    flex_file.append_record ( BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof(measurement_data_t) / sizeof(uint32_t));
 
       // service external commands if any ***************************************************************
       communicator_command_t command;
@@ -388,10 +394,13 @@ void communicator_runnable (void*)
 	  flex_file.append_record (SENSOR_STATUS, &system_state, 1);
 	}
 
-      flex_file.append_record (BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof( observations) / sizeof(uint32_t));
+      if( have_first_GNSS_fix) // file usable
+	{
+	  flex_file.append_record (BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof( observations) / sizeof(uint32_t));
 
-      if( system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
-	flex_file.append_record ( MAGNETOMETER_DATA, (uint32_t*) &external_magnetometer, sizeof( external_magnetometer) / sizeof(uint32_t));
+	  if( system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
+	    flex_file.append_record ( MAGNETOMETER_DATA, (uint32_t*) &external_magnetometer, sizeof( external_magnetometer) / sizeof(uint32_t));
+	}
     }
 }
 
