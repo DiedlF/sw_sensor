@@ -25,6 +25,11 @@ public:
     close();
   }
 
+  bool is_open( void)
+  {
+    return file_is_open;
+  }
+
   bool append_record ( flexible_log_file_record_type type, uint32_t *data, uint32_t data_size_words)
   {
     if( not file_is_open)

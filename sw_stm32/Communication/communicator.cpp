@@ -167,12 +167,33 @@ void communicator_runnable (void*)
   unsigned GNSS_watchdog = 0;
   unsigned old_system_state = system_state;
   bool already_reportet_no_GNSS_fix = false;
+  bool configuration_data_written=false;
   unsigned GNSS_count = 0;
 
   // this is the MAIN data acquisition and processing loop **********************************************
   while (true)
     {
       notify_take (true); // wait for synchronization by IMU @ 100 Hz
+
+      if( not configuration_data_written && flex_file.is_open())
+	{
+	  configuration_data_written = true;
+
+	  // we can now start using the log file
+	  // so: write the necessary start information
+	  {
+	  uint32_t file_format_version = flexible_log_file_implementation_t::FLEXIBLE_LOG_FILE_FORMAT_VERSION;
+	  flex_file.append_record ( FILE_FORMAT_VERSION, &file_format_version, 1);
+	  }
+
+	  // find all used EEPROM records and write them into the flex file
+	  for( EEPROM_file_system_node::ID_t id=1; id < LOWEST_UNUSED_EEPROM_ID; ++id)
+	    {
+	      EEPROM_file_system_node *node = permanent_data_file.find_datum(id);
+	      if( node)
+	      flex_file.append_record ( EEPROM_FILE_RECORD, (uint32_t*)node, node->size);
+	    }
+	}
 
       if (GNSS_new_data_ready) // triggered after 75ms or 100ms, GNSS-dependent
 	{
@@ -187,49 +208,32 @@ void communicator_runnable (void*)
 	  if( (have_first_GNSS_fix == false) && ( coordinates.sat_fix_type != SAT_FIX_NONE))
 	    {
 	      have_first_GNSS_fix = true;
-
-	      // we can now start using the log file
-	      // so: write the necessary start information
-	      {
-	      uint32_t file_format_version = flexible_log_file_implementation_t::FLEXIBLE_LOG_FILE_FORMAT_VERSION;
-	      flex_file.append_record ( FILE_FORMAT_VERSION, &file_format_version, 1);
-	      }
-
-	      // find all used EEPROM records and write them into the flex file
-	      for( EEPROM_file_system_node::ID_t id=1; id < LOWEST_UNUSED_EEPROM_ID; ++id)
-	        {
-	          EEPROM_file_system_node *node = permanent_data_file.find_datum(id);
-	          if( node)
-	    	  flex_file.append_record ( EEPROM_FILE_RECORD, (uint32_t*)node, node->size);
-	        }
-
-
 	      organizer.update_magnetic_induction_data( coordinates.latitude, coordinates.longitude);
 	    }
 
 	  GNSS_watchdog=0;
 
-	  switch( coordinates.sat_fix_type)
-	  {
-	    case SAT_FIX:
-		  flex_file.append_record ( GNSS_DATA, (uint32_t*) &coordinates,   sizeof( GNSS_coordinates_t)   / sizeof(uint32_t));
-		  already_reportet_no_GNSS_fix = false;
-	      break;
-	    case SAT_FIX | SAT_HEADING:
-		  flex_file.append_record ( D_GNSS_DATA, (uint32_t*) &coordinates, sizeof( D_GNSS_coordinates_t) / sizeof(uint32_t));
-		  already_reportet_no_GNSS_fix = false;
-	      break;
-	    case SAT_FIX_NONE:
-	    default:
-	      if( not already_reportet_no_GNSS_fix)
-		{
-		  already_reportet_no_GNSS_fix = true;
-		  // send one more record
-		  if( have_first_GNSS_fix) // file usable
+	  if( configuration_data_written && flex_file.is_open())
+	    switch( coordinates.sat_fix_type)
+	    {
+	      case SAT_FIX:
 		    flex_file.append_record ( GNSS_DATA, (uint32_t*) &coordinates,   sizeof( GNSS_coordinates_t)   / sizeof(uint32_t));
-		}
-	      break;
-	  }
+		    already_reportet_no_GNSS_fix = false;
+		break;
+	      case SAT_FIX | SAT_HEADING:
+		    flex_file.append_record ( D_GNSS_DATA, (uint32_t*) &coordinates, sizeof( D_GNSS_coordinates_t) / sizeof(uint32_t));
+		    already_reportet_no_GNSS_fix = false;
+		break;
+	      case SAT_FIX_NONE:
+	      default:
+		if( not already_reportet_no_GNSS_fix)
+		  {
+		    already_reportet_no_GNSS_fix = true;
+		    // send one more record
+		    flex_file.append_record ( GNSS_DATA, (uint32_t*) &coordinates,   sizeof( GNSS_coordinates_t)   / sizeof(uint32_t));
+		  }
+		break;
+	    }
 	}
       else
 	{
@@ -245,8 +249,8 @@ void communicator_runnable (void*)
       organizer.on_new_pressure_data( observations.static_pressure, observations.pitot_pressure);
       organizer.update_at_100_Hz( observations, system_state, external_magnetometer);
 
-	  if( have_first_GNSS_fix) // file usable
-	    flex_file.append_record ( BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof(measurement_data_t) / sizeof(uint32_t));
+      if( configuration_data_written && flex_file.is_open())
+	flex_file.append_record ( BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof(measurement_data_t) / sizeof(uint32_t));
 
       // service external commands if any ***************************************************************
       communicator_command_t command;
@@ -394,7 +398,7 @@ void communicator_runnable (void*)
 	  flex_file.append_record (SENSOR_STATUS, &system_state, 1);
 	}
 
-      if( have_first_GNSS_fix) // file usable
+      if( configuration_data_written && flex_file.is_open())
 	{
 	  flex_file.append_record (BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof( observations) / sizeof(uint32_t));
 
