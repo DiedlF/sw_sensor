@@ -120,16 +120,9 @@ void communicator_runnable (void*)
   organizer_t organizer;
   organizer.initialize_before_measurement();
 
-
-  uint16_t GNSS_count = 0;
-
   GNSS_configration_t GNSS_configuration =
-      (GNSS_configration_t) round(configuration (GNSS_CONFIGURATION));
+      (GNSS_configration_t) round( configuration (GNSS_CONFIGURATION));
   organizer.set_GNSS_type(GNSS_configuration); // required for speed accuracy monitoring limit value
-
-  uint8_t count_10Hz = 1; // de-synchronize CAN output by 1 cycle
-
-  GNSS.clear_sat_fix_type();
 
   switch (GNSS_configuration)
     {
@@ -141,13 +134,6 @@ void communicator_runnable (void*)
 	acquire_privileges();
 	RestrictedTask t( parameters);
 	drop_privileges();
-
-	while (!GNSS_new_data_ready) // lousy spin lock !
-	  delay (100);
-
-	organizer.update_GNSS_data ( coordinates);
-	update_system_state_set( GNSS_AVAILABLE);
-	GNSS_new_data_ready = false;
       }
       break;
     case GNSS_F9P_F9H: // extra task for 2nd GNSS module required
@@ -162,13 +148,6 @@ void communicator_runnable (void*)
 
 	    Task usart4_task (USART_4_runnable, "D-GNSS", 256, 0, STANDARD_TASK_PRIORITY + 1);
 	  }
-
-	while (!GNSS_new_data_ready) // lousy spin lock !
-	  delay (100);
-
-	organizer.update_GNSS_data ( coordinates);
-	update_system_state_set( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
-	GNSS_new_data_ready = false;
       }
       break;
     case GNSS_F9P_F9P: // no extra task for 2nd GNSS module
@@ -176,21 +155,17 @@ void communicator_runnable (void*)
 	acquire_privileges();
 	RestrictedTask t( usart_3_task_param);
 	drop_privileges();
-
-	while (!GNSS_new_data_ready) // lousy spin lock !
-	  delay (100);
-
-	organizer.update_GNSS_data ( coordinates);
-	update_system_state_set( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
-	GNSS_new_data_ready = false;
       }
       break;
     default:
-      ASSERT(false);
+      break;
     }
 
   for( int i=0; i<100; ++i) // wait 1 s until measurement stable
     notify_take (true);
+
+  GNSS.clear_sat_fix_type();
+  GNSS_new_data_ready = false;
 
   // the construction-process may be very slow and shall not wake the watchdog
   // now we can switch to our original priority
@@ -204,18 +179,25 @@ void communicator_runnable (void*)
   unsigned synchronizer_10Hz = 10; // re-sampling 100Hz -> 10Hz
   unsigned GNSS_watchdog = 0;
   unsigned old_system_state = system_state;
+  bool already_reportet_no_GNSS_fix = false;
+  unsigned GNSS_count = 0;
 
   // this is the MAIN data acquisition and processing loop **********************************************
   while (true)
     {
       notify_take (true); // wait for synchronization by IMU @ 100 Hz
 
-      if (GNSS_new_data_ready) // triggered after 75ms or 200ms, GNSS-dependent
+      if (GNSS_new_data_ready) // triggered after 75ms or 100ms, GNSS-dependent
 	{
 	  organizer.update_GNSS_data ( coordinates);
 	  GNSS_new_data_ready = false;
+	  
+	  update_system_state_set( GNSS_AVAILABLE);
 
-	  if( (have_first_GNSS_fix == false) && (( coordinates.sat_fix_type & SAT_FIX) != 0))
+	  if( GNSS_configuration > GNSS_M9N)
+	    update_system_state_set( D_GNSS_AVAILABLE);
+
+	  if( (have_first_GNSS_fix == false) && ( coordinates.sat_fix_type != SAT_FIX_NONE))
 	    {
 	      have_first_GNSS_fix = true;
 	      organizer.update_magnetic_induction_data( coordinates.latitude, coordinates.longitude);
@@ -225,17 +207,22 @@ void communicator_runnable (void*)
 
 	  switch( coordinates.sat_fix_type)
 	  {
-	    case SAT_FIX_NONE:
-		  update_system_state_clear( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
-	      break;
 	    case SAT_FIX:
-		  update_system_state_set( GNSS_AVAILABLE);
-		  update_system_state_clear( D_GNSS_AVAILABLE);
 		  flex_file.append_record ( GNSS_DATA, (uint32_t*) &coordinates,   sizeof( GNSS_coordinates_t)   / sizeof(uint32_t));
+		  already_reportet_no_GNSS_fix = false;
 	      break;
 	    case SAT_FIX | SAT_HEADING:
-		  update_system_state_set( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
 		  flex_file.append_record ( D_GNSS_DATA, (uint32_t*) &coordinates, sizeof( D_GNSS_coordinates_t) / sizeof(uint32_t));
+		  already_reportet_no_GNSS_fix = false;
+	      break;
+	    case SAT_FIX_NONE:
+	    default:
+	      if( not already_reportet_no_GNSS_fix)
+		{
+		  already_reportet_no_GNSS_fix = true;
+		  // send one more record
+		  flex_file.append_record ( GNSS_DATA, (uint32_t*) &coordinates,   sizeof( GNSS_coordinates_t)   / sizeof(uint32_t));
+		}
 	      break;
 	  }
 	}
@@ -346,6 +333,8 @@ void communicator_runnable (void*)
 	      organizer.cleanup_after_landing();
 	      perform_after_landing_actions.set();
 	    }
+
+	  trigger_CAN ();
 	}
 
       // service the GNSS LED ****************************************************************************
@@ -391,12 +380,6 @@ void communicator_runnable (void*)
       // service the red error LED
       HAL_GPIO_WritePin ( LED_ERROR_GPIO_Port, LED_ERROR_Pin,
 	    essential_sensors_available( GNSS_configuration > GNSS_M9N) ? GPIO_PIN_RESET : GPIO_PIN_SET);
-
-      if (++count_10Hz >= 10) // resample 100Hz -> 10Hz
-	{
-	  count_10Hz = 0;
-	  trigger_CAN ();
-	}
 
       organizer.report_data ( state_vector);
       if( system_state != old_system_state)
