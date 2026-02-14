@@ -274,7 +274,7 @@ emergency_exit:
     /* wake watchdog */;
 }
 
-bool write_EEPROM_dump( const char * filename)
+bool write_EEPROM_dump( const char * file_path)
 {
   FRESULT fresult;
   FIL fp;
@@ -283,9 +283,8 @@ bool write_EEPROM_dump( const char * filename)
   SHA256 sha;
   int32_t writtenBytes = 0;
 
-  append_string (next, filename);
+  append_string (next, file_path);
   append_string (next, ".EEPROM");
-  *next=0;
 
   fresult = f_open (&fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
   if (fresult != FR_OK)
@@ -726,13 +725,18 @@ restart:
     {
       // generate filename based on timestamp
       char * next = out_filename;
+
+      fresult = f_stat("eeprom", &filinfo);
+      if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)!=0))
+	{
+	  append_string( next, "eeprom/");
+	  next = format_date_time( next);
+	  write_EEPROM_dump( out_filename); // now we have date+time, start logging
+	}
+
+      next = out_filename;
       append_string( next, "logger/");
       next = format_date_time( next);
-
-      acquire_privileges();
-      write_EEPROM_dump( out_filename); // now we have date+time, start logging
-      drop_privileges();
-
       append_string( next, ".lrsx");
 
       bool success = flex_file.open(out_filename);
@@ -807,7 +811,7 @@ static TaskParameters_t p =
   uSD_stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { 0, 0, 0},
+      { (void *)0x080C0000, 0x00040000, portMPU_REGION_READ_WRITE}, // EEPROM
       { 0, 0, 0}
       } 
     };
