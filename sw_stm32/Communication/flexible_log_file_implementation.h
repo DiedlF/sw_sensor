@@ -43,6 +43,10 @@ public:
   bool flush_buffer( void);
   bool sync_file( void);
   bool close( void) override;
+  void block_input( void)
+  {
+    file_is_open = false;
+  }
 
 private:
   bool write_block( uint32_t * begin, uint32_t size_words) override;

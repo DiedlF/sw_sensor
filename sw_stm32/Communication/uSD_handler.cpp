@@ -793,6 +793,7 @@ restart:
 	      flex_file.sync_file();
 	      if( perform_after_landing_actions.test_and_reset())
 		{
+		  flex_file.block_input(); // avoid buffer overrun
 		  flex_file.close();
 
 		  delay(100); // just to be sure everything is written
