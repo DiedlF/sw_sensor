@@ -731,7 +731,9 @@ restart:
 	{
 	  append_string( next, "eeprom/");
 	  next = format_date_time( next);
+	  acquire_privileges(); //reading sensitive flash sections
 	  write_EEPROM_dump( out_filename); // now we have date+time, start logging
+	  drop_privileges();
 	}
 
       next = out_filename;
