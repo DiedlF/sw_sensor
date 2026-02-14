@@ -99,13 +99,6 @@ private:
   bool eof;
 };
 
-#if TEST_MODULE
-unsigned write_EEPROM_value_dummy( EEPROM_PARAMETER_ID identifier, float value)
-{
-  return 0;
-}
-#endif
-
 bool read_init_file( const char * filename)
 {
   ASCII_file_reader file_reader((char *)filename);
@@ -113,7 +106,6 @@ bool read_init_file( const char * filename)
     return false;
 
   char *position;
-  unsigned status;
 
   // get all readable configuration lines and program data into EEPROM
   while( file_reader.read_line( position))
@@ -157,13 +149,8 @@ bool read_init_file( const char * filename)
 	  while( value < -M_PI_F)
 	    value += M_PI_F * 2.0f;
 	}
-
-#if TEST_MODULE
-      status = write_EEPROM_value_dummy( identifier->id, value);
-#else
-      status = write_EEPROM_value( persistent_parameter->id, value);
-#endif
-      ASSERT( ! status);
+      bool success = write_EEPROM_value( persistent_parameter->id, value);
+      ASSERT( success);
     }
 
   return true;
