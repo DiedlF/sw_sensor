@@ -61,15 +61,13 @@ extern DMA_HandleTypeDef hdma_sdio_tx;
 extern uint64_t FAT_time; //!< DOS FAT time for file usage
 
 #define MEM_BUFSIZE 8192 // bytes
-#define RESERVE 2048
 
 void sync_logger(void);
 
-COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE + RESERVE];
+COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE];
 COMMON flexible_log_file_implementation_t flex_file(
     (uint32_t *)mem_buffer,
     MEM_BUFSIZE / sizeof( uint32_t),
-    (MEM_BUFSIZE+RESERVE) / sizeof( uint32_t),
     sync_logger
     );
 

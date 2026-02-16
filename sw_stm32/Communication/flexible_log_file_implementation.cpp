@@ -24,20 +24,6 @@ bool flexible_log_file_implementation_t::close( void)
   return true;
 }
 
-void flexible_log_file_implementation_t::wrap_around ( void)
-{
-  if( write_pointer > buffer_end)
-    {
-      unsigned part_length = write_pointer - buffer_end;
-      uint32_t *to = buffer;
-      uint32_t *from = buffer_end;
-      while( part_length--)
-	*to++ = *from++;
-
-      write_pointer = to;
-    }
-}
-
 bool flexible_log_file_implementation_t::sync_file( void)
 {
   FRESULT fresult;
@@ -47,24 +33,55 @@ bool flexible_log_file_implementation_t::sync_file( void)
 
 bool flexible_log_file_implementation_t::flush_buffer( void)
 {
-  if( write_pointer < buffer)
-    return true; // still waiting ...
-
+  uint32_t *start;
   UINT writtenBytes = 0;
-  unsigned size_bytes = (buffer_end - buffer) * sizeof( uint32_t);
-  f_write( &out_file, (const char *)buffer, size_bytes, &writtenBytes);
+  if( status & WRITING_LOW)
+    {
+      ASSERT( not( status & FILLING_LOW));
+      start = buffer;
+    }
+  else if( ( status & WRITING_HIGH))
+    {
+      ASSERT( not( status & FILLING_HIGH));
+      start = second_part;
+    }
 
-  wrap_around();
+  unsigned size_bytes = (buffer_end - buffer) / 2 * sizeof( uint32_t);
+  f_write( &out_file, (const char *)start, size_bytes, &writtenBytes);
+
+  status &= ~(WRITING_LOW | WRITING_HIGH);
 
   return ( size_bytes == writtenBytes);
 }
 
 bool flexible_log_file_implementation_t::write_block (uint32_t *p_data, uint32_t size_words)
 {
-  ASSERT( write_pointer + size_words < buffer_absolute_limit);
-
   while( size_words --)
+    {
 	*write_pointer++ = *p_data++;
+
+	if( write_pointer > buffer_end)
+	  {
+	    ASSERT(not (status & WRITING_LOW) )
+	    write_pointer = buffer;
+
+	    status &= ~FILLING_HIGH;
+	    status |= FILLING_LOW;
+	    status |= WRITING_HIGH;
+
+	    signal();
+	  }
+	else if( (status & FILLING_LOW) and (write_pointer >= second_part ))
+	  {
+	    ASSERT( not (status & WRITING_HIGH) );
+
+	    status &= ~FILLING_LOW;
+	    status |= FILLING_HIGH;
+	    status |= WRITING_LOW;
+
+	    signal();
+	  }
+    }
 
   if( write_pointer > buffer_end)
     signal();

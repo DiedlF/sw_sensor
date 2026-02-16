@@ -12,10 +12,11 @@ class flexible_log_file_implementation_t : public flexible_log_file_t
 {
 public:
 
-  flexible_log_file_implementation_t ( uint32_t * buf, unsigned size_words, unsigned limit_words, FPTR _signal)
+  flexible_log_file_implementation_t ( uint32_t * buf, unsigned size_words, FPTR _signal)
   : flexible_log_file_t( buf, size_words),
     file_is_open( false),
-    buffer_absolute_limit( flexible_log_file_t::buffer + limit_words),
+    status( FILLING_LOW),
+    second_part ( buffer + (buffer-buffer_end)/2),
     signal( _signal)
   {
   }
@@ -49,11 +50,19 @@ public:
   }
 
 private:
+  enum {
+    FILLING_LOW=1,
+    FILLING_HIGH=2,
+    WRITING_LOW=4,
+    WRITING_HIGH=8
+  };
+
   bool write_block( uint32_t * begin, uint32_t size_words) override;
   void wrap_around( void);
   FIL out_file;
   bool file_is_open;
-  uint32_t *buffer_absolute_limit; // length of bile buffer incl. reserve words
+  uint32_t status;
+  uint32_t *second_part;
   FPTR signal;
 };
 
