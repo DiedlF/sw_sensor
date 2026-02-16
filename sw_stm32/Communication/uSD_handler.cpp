@@ -766,7 +766,11 @@ restart:
 	      write_crash_dump();
 	    }
 
+	  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
 	  success = flex_file.flush_buffer();
+	  success &= flex_file.sync_file();
+	  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
+
 	  if( not success)
 	      {
 	      flex_file.close(); // at least: try to ...
@@ -780,25 +784,13 @@ restart:
 		}
 	      }
 
-    #if uSD_LED_STATUS
-	  if( (sync_counter & 0x3) == 0)
-	    HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
-	  else
-	    HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
-    #endif
-
-	  if( ++sync_counter >= 16)
+	  if( perform_after_landing_actions.test_and_reset())
 	    {
-	      sync_counter = 0;
-	      flex_file.sync_file();
-	      if( perform_after_landing_actions.test_and_reset())
-		{
-		  flex_file.block_input(); // avoid buffer overrun
-		  flex_file.close();
+	      flex_file.block_input(); // avoid buffer overrun
+	      flex_file.close();
 
-		  delay(100); // just to be sure everything is written
-		  break; /* break inner while loop and start again, which will start a new set of logfiles */
-		}
+	      delay(250); // just to be sure everything is written
+	      break; /* break inner while loop and start again, which will start a new set of logfiles */
 	    }
 	}
     }
