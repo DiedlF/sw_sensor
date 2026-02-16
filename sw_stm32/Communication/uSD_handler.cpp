@@ -64,7 +64,8 @@ extern uint64_t FAT_time; //!< DOS FAT time for file usage
 
 void sync_logger(void);
 
-COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE];
+//COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE];
+COMMON uint8_t __ALIGNED(16) mem_buffer[MEM_BUFSIZE];
 COMMON flexible_log_file_implementation_t flex_file(
     (uint32_t *)mem_buffer,
     MEM_BUFSIZE / sizeof( uint32_t),

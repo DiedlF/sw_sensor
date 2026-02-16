@@ -16,7 +16,7 @@ public:
   : flexible_log_file_t( buf, size_words),
     file_is_open( false),
     status( FILLING_LOW),
-    second_part ( buffer + (buffer_end-buffer)/2),
+    second_part ( buffer + size_words / 2),
     signal( _signal)
   {
   }

@@ -10,6 +10,8 @@ bool flexible_log_file_implementation_t::open (char *file_name)
   if( fresult == FR_OK)
     {
       file_is_open = true;
+      write_pointer = buffer;
+      status = FILLING_LOW;
       return true;
     }
   return false;
@@ -18,8 +20,14 @@ bool flexible_log_file_implementation_t::open (char *file_name)
 bool flexible_log_file_implementation_t::close( void)
 {
   UINT writtenBytes = 0;
-  f_write( &out_file, (const char *)flexible_log_file_t::buffer, (flexible_log_file_t::write_pointer - flexible_log_file_t::buffer) * sizeof( uint32_t), &writtenBytes);
+  if( status & FILLING_LOW)
+    f_write( &out_file, (const char *)flexible_log_file_t::buffer, (flexible_log_file_t::write_pointer - flexible_log_file_t::buffer) * sizeof( uint32_t), &writtenBytes);
+  else
+    f_write( &out_file, (const char *)second_part, (flexible_log_file_t::write_pointer - second_part) * sizeof( uint32_t), &writtenBytes);
+
   f_close ( &out_file);
+
+  status = 0;
   file_is_open = false;
   return true;
 }
@@ -33,21 +41,20 @@ bool flexible_log_file_implementation_t::sync_file( void)
 
 bool flexible_log_file_implementation_t::flush_buffer( void)
 {
-  uint32_t *start;
   UINT writtenBytes = 0;
+  unsigned size_bytes = (second_part - buffer) * sizeof( uint32_t);
+
   if( status & WRITING_LOW)
     {
       ASSERT( not( status & FILLING_LOW));
-      start = buffer;
+      f_write( &out_file, (const char *)buffer, size_bytes, &writtenBytes);
     }
   else if( ( status & WRITING_HIGH))
     {
       ASSERT( not( status & FILLING_HIGH));
-      start = second_part;
+      f_write( &out_file, (const char *)second_part, size_bytes, &writtenBytes);
     }
 
-  unsigned size_bytes = (buffer_end - buffer) / 2 * sizeof( uint32_t);
-  f_write( &out_file, (const char *)start, size_bytes, &writtenBytes);
 
   status &= ~(WRITING_LOW | WRITING_HIGH);
 
@@ -56,6 +63,29 @@ bool flexible_log_file_implementation_t::flush_buffer( void)
 
 bool flexible_log_file_implementation_t::write_block (uint32_t *p_data, uint32_t size_words)
 {
+  if( p_data < (uint32_t *)0x10000000)
+    {
+      ASSERT( p_data  >= (uint32_t *)0x08000000);
+    }
+  else
+    {
+      ASSERT( p_data  >= (uint32_t *)0x10000000);
+      ASSERT( p_data  < (uint32_t *)0x20020000);
+    }
+  ASSERT( write_pointer >=buffer );
+  ASSERT( write_pointer < buffer_end );
+  if( status & FILLING_HIGH)
+    {
+      ASSERT( write_pointer >= second_part);
+      ASSERT(not (status & WRITING_HIGH) )
+    }
+  if( status & FILLING_LOW)
+    {
+    ASSERT( write_pointer < second_part);
+    ASSERT(not (status & WRITING_LOW) )
+    }
+
+  bool need_to_signal = false;
   while( size_words --)
     {
 	*write_pointer++ = *p_data++;
@@ -69,7 +99,7 @@ bool flexible_log_file_implementation_t::write_block (uint32_t *p_data, uint32_t
 	    status |= FILLING_LOW;
 	    status |= WRITING_HIGH;
 
-	    signal();
+	    need_to_signal = true;
 	  }
 	else if( (status & FILLING_LOW) and (write_pointer >= second_part ))
 	  {
@@ -79,11 +109,11 @@ bool flexible_log_file_implementation_t::write_block (uint32_t *p_data, uint32_t
 	    status |= FILLING_HIGH;
 	    status |= WRITING_LOW;
 
-	    signal();
+	    need_to_signal = true;
 	  }
     }
-
-  if( write_pointer > buffer_end)
+  if( need_to_signal)
     signal();
+
   return true;
 }
