@@ -10,6 +10,7 @@
 uint64_t getTime_usec(void);
 
 COMMON unsigned write_test_counter;
+COMMON Semaphore trigger_flash_fill;
 
 static void runnable( void *)
 {
@@ -17,31 +18,20 @@ static void runnable( void *)
   delay( 1000);
   uint64_t time;
 
-  uint8_t loop_count;
-  success = permanent_data_file.retrieve_data(0xfe, loop_count);
-  if( not success)
-    loop_count = 0;
+  while( true)
+    {
+      trigger_flash_fill.wait();
 
-  if( loop_count == 5)
-    suspend();
+      for( write_test_counter=0; write_test_counter < 9000; ++write_test_counter)
+      {
+        time = getTime_usec();
+        success = permanent_data_file.store_data ( 0xa5, 2, &time);
+        ASSERT( success);
 
-  for( write_test_counter=0; write_test_counter < 9000; ++write_test_counter)
-  {
-    time = getTime_usec();
-    success = permanent_data_file.store_data ( 0xa5, 2, &time);
-    ASSERT( success);
-
-    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
-	  ((( write_test_counter / 100) & 1) == 0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
-  }
-
-  suspend();
-
-  ++loop_count;
-  success = permanent_data_file.store_data ( 0xfe, loop_count);
-  ASSERT( success);
-  delay(100);
-  ASSERT ( 0);
+        HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
+    	  ((( write_test_counter / 100) & 1) == 0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+      }
+    }
 }
 
 #define STACKSIZE 128
