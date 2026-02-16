@@ -61,7 +61,7 @@ extern DMA_HandleTypeDef hdma_sdio_tx;
 extern uint64_t FAT_time; //!< DOS FAT time for file usage
 
 #define MEM_BUFSIZE 8192 // bytes
-#define RESERVE 4096
+#define RESERVE 2048
 
 void sync_logger(void);
 
