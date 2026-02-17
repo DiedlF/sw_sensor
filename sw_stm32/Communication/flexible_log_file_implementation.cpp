@@ -55,7 +55,6 @@ bool flexible_log_file_implementation_t::flush_buffer( void)
       f_write( &out_file, (const char *)second_part, size_bytes, &writtenBytes);
     }
 
-
   status &= ~(WRITING_LOW | WRITING_HIGH);
 
   return ( size_bytes == writtenBytes);
@@ -63,17 +62,13 @@ bool flexible_log_file_implementation_t::flush_buffer( void)
 
 bool flexible_log_file_implementation_t::write_block (uint32_t *p_data, uint32_t size_words)
 {
-  if( p_data < (uint32_t *)0x10000000)
-    {
-      ASSERT( p_data  >= (uint32_t *)0x08000000);
-    }
-  else
-    {
-      ASSERT( p_data  >= (uint32_t *)0x10000000);
-      ASSERT( p_data  < (uint32_t *)0x20020000);
-    }
-  ASSERT( write_pointer >=buffer );
+#if 1 // debug traps
+  ASSERT( p_data > (uint32_t *)0x08000000);
+  ASSERT( p_data < (uint32_t *)0x20020000);
+
+  ASSERT( write_pointer >=buffer ); // todo patch debug
   ASSERT( write_pointer < buffer_end );
+
   if( status & FILLING_HIGH)
     {
       ASSERT( write_pointer >= second_part);
@@ -84,6 +79,7 @@ bool flexible_log_file_implementation_t::write_block (uint32_t *p_data, uint32_t
     ASSERT( write_pointer < second_part);
     ASSERT(not (status & WRITING_LOW) )
     }
+#endif
 
   bool need_to_signal = false;
   while( size_words --)
@@ -93,6 +89,7 @@ bool flexible_log_file_implementation_t::write_block (uint32_t *p_data, uint32_t
 	if( write_pointer > buffer_end)
 	  {
 	    ASSERT(not (status & WRITING_LOW) )
+
 	    write_pointer = buffer;
 
 	    status &= ~FILLING_HIGH;
@@ -101,7 +98,7 @@ bool flexible_log_file_implementation_t::write_block (uint32_t *p_data, uint32_t
 
 	    need_to_signal = true;
 	  }
-	else if( (status & FILLING_LOW) and (write_pointer >= second_part ))
+	else if( write_pointer == second_part)
 	  {
 	    ASSERT( not (status & WRITING_HIGH) );
 
