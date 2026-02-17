@@ -14,7 +14,7 @@
 #define PAGE_SIZE_LONG_WORDS 0x04000
 
 COMMON Queue <flash_write_order> flash_command_queue( 3);
-COMMON Semaphore flash_isr_to_task( 1, 0, "FLASH_ISR");
+COMMON Semaphore flash_isr_to_task( 1, 0, (char *)"FLASH_ISR");
 COMMON Mutex EEPROM_lock;
 COMMON Mutex_Wrapper_Type my_mutex;
 

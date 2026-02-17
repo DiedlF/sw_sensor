@@ -30,7 +30,7 @@
 #define SD_DETECT_PIN         GPIO_PIN_13
 #define SD_DETECT_GPIO_PORT   GPIOC
 
-COMMON Semaphore watchdog_activator;
+COMMON Semaphore watchdog_activator(1,0,(char *)"WATCH_ACTIVATOR");
 
 static COMMON WWDG_HandleTypeDef WwdgHandle;
 extern bool user_initiated_reset;

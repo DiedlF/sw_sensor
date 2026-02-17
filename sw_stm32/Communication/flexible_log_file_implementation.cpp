@@ -62,31 +62,12 @@ bool flexible_log_file_implementation_t::flush_buffer( void)
 
 bool flexible_log_file_implementation_t::write_block (uint32_t *p_data, uint32_t size_words)
 {
-#if 1 // debug traps
-  ASSERT( p_data > (uint32_t *)0x08000000);
-  ASSERT( p_data < (uint32_t *)0x20020000);
-
-  ASSERT( write_pointer >=buffer ); // todo patch debug
-  ASSERT( write_pointer < buffer_end );
-
-  if( status & FILLING_HIGH)
-    {
-      ASSERT( write_pointer >= second_part);
-      ASSERT(not (status & WRITING_HIGH) )
-    }
-  if( status & FILLING_LOW)
-    {
-    ASSERT( write_pointer < second_part);
-    ASSERT(not (status & WRITING_LOW) )
-    }
-#endif
-
   bool need_to_signal = false;
   while( size_words --)
     {
 	*write_pointer++ = *p_data++;
 
-	if( write_pointer > buffer_end)
+	if( write_pointer >= buffer_end)
 	  {
 	    ASSERT(not (status & WRITING_LOW) )
 

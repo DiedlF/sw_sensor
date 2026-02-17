@@ -60,7 +60,7 @@ extern DMA_HandleTypeDef hdma_sdio_rx;
 extern DMA_HandleTypeDef hdma_sdio_tx;
 extern uint64_t FAT_time; //!< DOS FAT time for file usage
 
-#define MEM_BUFSIZE 8192 // bytes
+#define MEM_BUFSIZE 4096 // bytes
 
 void sync_logger(void);
 
@@ -71,6 +71,11 @@ COMMON flexible_log_file_implementation_t flex_file(
     MEM_BUFSIZE / sizeof( uint32_t),
     sync_logger
     );
+
+bool write_block( uint32_t * begin, uint32_t size_words)
+{
+  return flex_file.write_block ( begin, size_words);
+}
 
 //!< format date and time from sat fix data
 char * format_date_time( char * target)
@@ -750,8 +755,6 @@ restart:
 		  write_crash_dump();
 	    }
 	}
-
-      int32_t sync_counter=0;
 
       // repeat: fill buffer with data chunks, write it to uSD and copy remaining data to start of buffer
       // this logger loop is synchronized by the communicator object

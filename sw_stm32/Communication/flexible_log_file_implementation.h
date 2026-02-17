@@ -4,7 +4,6 @@
 #include "stdint.h"
 #include "fatfs.h"
 #include "flexible_log_file.h"
-using namespace std;
 
 typedef void ( *FPTR)( void); // declare void -> void function pointer
 
@@ -49,6 +48,8 @@ public:
     file_is_open = false;
   }
 
+  bool write_block( uint32_t * begin, uint32_t size_words);
+
 private:
   enum {
     FILLING_LOW=1,
@@ -57,7 +58,6 @@ private:
     WRITING_HIGH=8
   };
 
-  bool write_block( uint32_t * begin, uint32_t size_words) override;
   void wrap_around( void);
   FIL out_file;
   bool file_is_open;

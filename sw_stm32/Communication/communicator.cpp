@@ -91,35 +91,36 @@ static ROM TaskParameters_t usart_3_task_param =
     }
   };
 
-void communicator_runnable (void*)
+void
+communicator_runnable (void*)
 {
   bool have_first_GNSS_fix = false;
   bool fine_tune_sensor_attitude = false;
 
   // wait until configuration file read if one is given
-  setup_file_handling_completed.wait();
+  setup_file_handling_completed.wait ();
 
-  report_horizon_avalability();
+  report_horizon_avalability ();
 
-  vector_average_organizer_t vector_average_organizer={0};
-  vector_average_collection_t vector_average_collection={0};
+  vector_average_organizer_t vector_average_organizer = { 0 };
+  vector_average_collection_t vector_average_collection = { 0 };
 
   organizer_t organizer;
-  organizer.initialize_before_measurement();
+  organizer.initialize_before_measurement ();
 
-  GNSS_configration_t GNSS_configuration =
-      (GNSS_configration_t) round( configuration (GNSS_CONFIGURATION));
-  organizer.set_GNSS_type(GNSS_configuration); // required for speed accuracy monitoring limit value
+  GNSS_configration_t GNSS_configuration = (GNSS_configration_t) round (
+      configuration (GNSS_CONFIGURATION));
+  organizer.set_GNSS_type (GNSS_configuration); // required for speed accuracy monitoring limit value
 
   switch (GNSS_configuration)
     {
     case GNSS_M9N:
       {
 	TaskParameters_t parameters = usart_3_task_param;
-	parameters.pvParameters = (void *)&FALSE;
+	parameters.pvParameters = (void*) &FALSE;
 
-	acquire_privileges();
-	RestrictedTask t( parameters);
+	acquire_privileges ();
+	RestrictedTask t (parameters);
 	drop_privileges();
       }
       break;
@@ -127,20 +128,21 @@ void communicator_runnable (void*)
       {
 	  {
 	    TaskParameters_t parameters = usart_3_task_param;
-	    parameters.pvParameters = (void *)&FALSE;
+	    parameters.pvParameters = (void*) &FALSE;
 
-	    acquire_privileges();
-	    RestrictedTask t( parameters);
+	    acquire_privileges ();
+	    RestrictedTask t (parameters);
 	    drop_privileges();
 
-	    Task usart4_task (USART_4_runnable, "D-GNSS", 256, 0, STANDARD_TASK_PRIORITY + 1);
+	    Task usart4_task (USART_4_runnable, "D-GNSS", 256, 0,
+			      STANDARD_TASK_PRIORITY + 1);
 	  }
       }
       break;
     case GNSS_F9P_F9P: // no extra task for 2nd GNSS module
       {
-	acquire_privileges();
-	RestrictedTask t( usart_3_task_param);
+	acquire_privileges ();
+	RestrictedTask t (usart_3_task_param);
 	drop_privileges();
       }
       break;
@@ -148,26 +150,26 @@ void communicator_runnable (void*)
       break;
     }
 
-  for( int i=0; i<100; ++i) // wait 1 s until measurement stable
+  for (int i = 0; i < 100; ++i) // wait 1 s until measurement stable
     notify_take (true);
 
-  GNSS.clear_sat_fix_type();
+  GNSS.clear_sat_fix_type ();
   GNSS_new_data_ready = false;
 
   // the construction-process may be very slow and shall not wake the watchdog
   // now we can switch to our original priority
-  communicator_task.set_priority( COMMUNICATOR_PRIORITY); // lift priority
+  communicator_task.set_priority ( COMMUNICATOR_PRIORITY); // lift priority
 
-  organizer.initialize_after_first_measurement( coordinates, observations);
+  organizer.initialize_after_first_measurement (coordinates, observations);
 
-  NMEA_task.resume();
-  CAN_task.resume();
+  NMEA_task.resume ();
+  CAN_task.resume ();
 
   unsigned synchronizer_10Hz = 10; // re-sampling 100Hz -> 10Hz
   unsigned GNSS_watchdog = 0;
   unsigned old_system_state = system_state;
   bool already_reportet_no_GNSS_fix = false;
-  bool configuration_data_written=false;
+  bool configuration_data_written = false;
   unsigned GNSS_count = 0;
 
   // this is the MAIN data acquisition and processing loop **********************************************
@@ -175,170 +177,164 @@ void communicator_runnable (void*)
     {
       notify_take (true); // wait for synchronization by IMU @ 100 Hz
 
-      if( not configuration_data_written && flex_file.is_open())
+      if (not configuration_data_written && flex_file.is_open ())
 	{
 	  configuration_data_written = true;
 
 	  // we can now start using the log file
 	  // so: write the necessary start information
-	  {
-	  uint32_t file_format_version = flexible_log_file_implementation_t::FLEXIBLE_LOG_FILE_FORMAT_VERSION;
-	  flex_file.append_record ( FILE_FORMAT_VERSION, &file_format_version, 1);
-	  }
+	    {
+	      uint32_t file_format_version =
+		  flexible_log_file_implementation_t::FLEXIBLE_LOG_FILE_FORMAT_VERSION;
+	      flex_file.append_record (FILE_FORMAT_VERSION,
+				       &file_format_version, 1);
+	    }
 
 	  // find all used EEPROM records and write them into the flex file
-	  for( EEPROM_file_system_node::ID_t id=1; id < LOWEST_UNUSED_EEPROM_ID; ++id)
+	  for (EEPROM_file_system_node::ID_t id = 1;
+	      id < LOWEST_UNUSED_EEPROM_ID; ++id)
 	    {
-	      EEPROM_file_system_node *node = permanent_data_file.find_datum(id);
-	      if( node)
-	      flex_file.append_record ( EEPROM_FILE_RECORD, (uint32_t*)node, node->size);
+	      EEPROM_file_system_node *node = permanent_data_file.find_datum (
+		  id);
+	      if (node)
+		flex_file.append_record (EEPROM_FILE_RECORD, (uint32_t*) node,
+					 node->size);
 	    }
 	}
 
       if (GNSS_new_data_ready) // triggered after 75ms or 100ms, GNSS-dependent
 	{
-	  organizer.update_GNSS_data ( coordinates);
-	  GNSS_new_data_ready = false;
-	  
-	  update_system_state_set( GNSS_AVAILABLE);
+	  update_system_state_set (GNSS_AVAILABLE);
 
-	  if( GNSS_configuration > GNSS_M9N)
-	    update_system_state_set( D_GNSS_AVAILABLE);
+	  organizer.update_GNSS_data (coordinates);
 
-	  if( (have_first_GNSS_fix == false) && ( coordinates.sat_fix_type != SAT_FIX_NONE))
+	  if (GNSS_configuration > GNSS_M9N)
+	    update_system_state_set (D_GNSS_AVAILABLE);
+
+	  if ((have_first_GNSS_fix == false)
+	      && (coordinates.sat_fix_type != SAT_FIX_NONE))
 	    {
 	      have_first_GNSS_fix = true;
-	      organizer.update_magnetic_induction_data( coordinates.latitude, coordinates.longitude);
+	      organizer.update_magnetic_induction_data (coordinates.latitude,
+							coordinates.longitude);
 	    }
 
-	  GNSS_watchdog=0;
-
-	  if( configuration_data_written && flex_file.is_open())
-	    switch( coordinates.sat_fix_type)
-	    {
-	      case SAT_FIX:
-		    flex_file.append_record ( GNSS_DATA, (uint32_t*) &coordinates,   sizeof( GNSS_coordinates_t)   / sizeof(uint32_t));
-		    already_reportet_no_GNSS_fix = false;
-		break;
-	      case SAT_FIX | SAT_HEADING:
-		    flex_file.append_record ( D_GNSS_DATA, (uint32_t*) &coordinates, sizeof( D_GNSS_coordinates_t) / sizeof(uint32_t));
-		    already_reportet_no_GNSS_fix = false;
-		break;
-	      case SAT_FIX_NONE:
-	      default:
-		if( not already_reportet_no_GNSS_fix)
-		  {
-		    already_reportet_no_GNSS_fix = true;
-		    // send one more record
-		    flex_file.append_record ( GNSS_DATA, (uint32_t*) &coordinates,   sizeof( GNSS_coordinates_t)   / sizeof(uint32_t));
-		  }
-		break;
-	    }
+	  GNSS_watchdog = 0;
 	}
       else
 	{
-	  if( GNSS_watchdog < 20)
-	      ++GNSS_watchdog;
+	  if (GNSS_watchdog < 20)
+	    ++GNSS_watchdog;
 	  else // we got no data form GNSS receiver
 	    {
 	      coordinates.sat_fix_type = SAT_FIX_NONE;
-	      update_system_state_clear( GNSS_AVAILABLE | D_GNSS_AVAILABLE);
+	      update_system_state_clear (GNSS_AVAILABLE | D_GNSS_AVAILABLE);
 	    }
 	}
 
-      organizer.on_new_pressure_data( observations.static_pressure, observations.pitot_pressure);
-      organizer.update_at_100_Hz( observations, system_state, external_magnetometer);
+      organizer.on_new_pressure_data (observations.static_pressure,
+				      observations.pitot_pressure);
+      organizer.update_at_100_Hz (observations, system_state,
+				  external_magnetometer);
 
       // service external commands if any ***************************************************************
       communicator_command_t command;
-      if( communicator_command_queue.receive(command, 0))
+      if (communicator_command_queue.receive (command, 0))
 	{
-	  switch( command)
-	  {
+	  switch (command)
+	    {
 	    case MEASURE_CALIB_LEFT:
-	      vector_average_organizer.source=&( observations.acc);
-	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_left);
-	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
+	      vector_average_organizer.source = &(observations.acc);
+	      vector_average_organizer.destination =
+		  &(vector_average_collection.acc_observed_left);
+	      vector_average_organizer.destination->zero ();
+	      vector_average_organizer.counter = VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case MEASURE_CALIB_RIGHT:
-	      vector_average_organizer.source=&( observations.acc);
-	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_right);
-	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
+	      vector_average_organizer.source = &(observations.acc);
+	      vector_average_organizer.destination =
+		  &(vector_average_collection.acc_observed_right);
+	      vector_average_organizer.destination->zero ();
+	      vector_average_organizer.counter = VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case MEASURE_CALIB_LEVEL:
-	      vector_average_organizer.source=&( observations.acc);
-	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_level);
-	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
+	      vector_average_organizer.source = &(observations.acc);
+	      vector_average_organizer.destination =
+		  &(vector_average_collection.acc_observed_level);
+	      vector_average_organizer.destination->zero ();
+	      vector_average_organizer.counter = VECTOR_AVERAGE_COUNT_SETUP;
 	      break;
 	    case SET_SENSOR_ROTATION:
 
 	      // make sure that we have all three measurements
-	      if( vector_average_collection.acc_observed_left.abs() < 0.001f)
+	      if (vector_average_collection.acc_observed_left.abs () < 0.001f)
 		break;
-	      if( vector_average_collection.acc_observed_right.abs() < 0.001f)
+	      if (vector_average_collection.acc_observed_right.abs () < 0.001f)
 		break;
-	      if( vector_average_collection.acc_observed_level.abs() < 0.001f)
+	      if (vector_average_collection.acc_observed_level.abs () < 0.001f)
 		break;
 
-	      organizer.update_sensor_orientation_data( vector_average_collection);
-	      organizer.initialize_before_measurement();
-	      report_horizon_avalability();
+	      organizer.update_sensor_orientation_data (
+		  vector_average_collection);
+	      organizer.initialize_before_measurement ();
+	      report_horizon_avalability ();
 	      break;
-	    case FINE_TUNE_CALIB:  // names "straight flight" in Larus Display Menu
-	      vector_average_organizer.source=&( observations.acc);
-	      vector_average_organizer.destination=&(vector_average_collection.acc_observed_level);
-	      vector_average_organizer.destination->zero();
-	      vector_average_organizer.counter=VECTOR_AVERAGE_COUNT_SETUP;
+	    case FINE_TUNE_CALIB: // names "straight flight" in Larus Display Menu
+	      vector_average_organizer.source = &(observations.acc);
+	      vector_average_organizer.destination =
+		  &(vector_average_collection.acc_observed_level);
+	      vector_average_organizer.destination->zero ();
+	      vector_average_organizer.counter = VECTOR_AVERAGE_COUNT_SETUP;
 	      fine_tune_sensor_attitude = true;
 	      break;
 
 	    case SOME_EEPROM_VALUE_HAS_CHANGED:
-	      organizer.initialize_before_measurement();
-	      report_horizon_avalability();
+	      organizer.initialize_before_measurement ();
+	      report_horizon_avalability ();
 	      break;
 
 	    case NO_COMMAND:
 	      break;
-	  }
+	    }
 	}
 
       // vector averaging in case of ground or air calibration activity *********************************
-      if( vector_average_organizer.counter != 0)
+      if (vector_average_organizer.counter != 0)
 	{
 	  vector_average_organizer.sum += *(vector_average_organizer.source);
-	  -- vector_average_organizer.counter;
+	  --vector_average_organizer.counter;
 
 	  // if measurement complete now
-	  if( vector_average_organizer.counter == 0)
+	  if (vector_average_organizer.counter == 0)
 	    {
 	      float inverse_count = 1.0f / VECTOR_AVERAGE_COUNT_SETUP;
-	      *(vector_average_organizer.destination) = vector_average_organizer.sum * inverse_count;
+	      *(vector_average_organizer.destination) =
+		  vector_average_organizer.sum * inverse_count;
 
 	      // in this case we do not wait for another command but re-calculate immediately
-	      if( fine_tune_sensor_attitude)
+	      if (fine_tune_sensor_attitude)
 		{
-		  fine_tune_sensor_attitude=false;
-		  organizer.fine_tune_sensor_orientation( vector_average_collection);
-		  organizer.initialize_before_measurement();
-		  report_horizon_avalability();
+		  fine_tune_sensor_attitude = false;
+		  organizer.fine_tune_sensor_orientation (
+		      vector_average_collection);
+		  organizer.initialize_before_measurement ();
+		  report_horizon_avalability ();
 		}
 	    }
 	}
 
       // slow 10Hz update and landing detection *********************************************************
       --synchronizer_10Hz;
-      if( synchronizer_10Hz == 0)
+      if (synchronizer_10Hz == 0)
 	{
 	  synchronizer_10Hz = 10;
 
-	  bool landing_detected_here = organizer.update_at_10Hz ( coordinates, observations);
-	  if( landing_detected_here)
+	  bool landing_detected_here = organizer.update_at_10Hz (coordinates,
+								 observations);
+	  if (landing_detected_here)
 	    {
-	      organizer.cleanup_after_landing();
-	      perform_after_landing_actions.set();
+	      organizer.cleanup_after_landing ();
+	      perform_after_landing_actions.set ();
 	    }
 
 	  trigger_CAN ();
@@ -348,55 +344,105 @@ void communicator_runnable (void*)
       ++GNSS_count;
       GNSS_count &= 0xff;
 
-      switch( GNSS_configuration)
-      {
+      switch (GNSS_configuration)
+	{
 	case GNSS_F9P_F9H:
 	case GNSS_F9P_F9P:
-	  switch( coordinates.sat_fix_type)
-	  {
+	  switch (coordinates.sat_fix_type)
+	    {
 	    case SAT_FIX:
-		  HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
-			((GNSS_count & 0xe0) == 0xe0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
-	    break;
-	    case SAT_HEADING | SAT_FIX:
-		  HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
-		      ((GNSS_count & 0x80) && (GNSS_count & 0x20)) ? GPIO_PIN_SET : GPIO_PIN_RESET);
-	    break;
-	    default:
-		HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin, GPIO_PIN_RESET);
+	      HAL_GPIO_WritePin (
+		  LED_STATUS1_GPIO_Port,
+		  LED_STATUS1_Pin,
+		  ((GNSS_count & 0xe0) == 0xe0) ?
+		      GPIO_PIN_SET : GPIO_PIN_RESET);
 	      break;
-	  }
+	    case SAT_HEADING | SAT_FIX:
+	      HAL_GPIO_WritePin (
+		  LED_STATUS1_GPIO_Port,
+		  LED_STATUS1_Pin,
+		  ((GNSS_count & 0x80) && (GNSS_count & 0x20)) ?
+		      GPIO_PIN_SET : GPIO_PIN_RESET);
+	      break;
+	    default:
+	      HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
+				 GPIO_PIN_RESET);
+	      break;
+	    }
 	  break;
 	case GNSS_M9N:
-	  if( coordinates.sat_fix_type == SAT_FIX)
-	    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
-	        ((GNSS_count & 0xe0) == 0xe0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+	  if (coordinates.sat_fix_type == SAT_FIX)
+	    HAL_GPIO_WritePin (
+		LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
+		((GNSS_count & 0xe0) == 0xe0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
 	  else
-	    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin, GPIO_PIN_RESET);
+	    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
+			       GPIO_PIN_RESET);
 	  break;
 	default:
-	  ASSERT( false);
+	  ASSERT(false)
+	  ;
 	  break;
-      }
+	}
 
       // service the red error LED
-      HAL_GPIO_WritePin ( LED_ERROR_GPIO_Port, LED_ERROR_Pin,
-	    essential_sensors_available( GNSS_configuration > GNSS_M9N) ? GPIO_PIN_RESET : GPIO_PIN_SET);
+      HAL_GPIO_WritePin (
+	  LED_ERROR_GPIO_Port,
+	  LED_ERROR_Pin,
+	  essential_sensors_available (GNSS_configuration > GNSS_M9N) ?
+	      GPIO_PIN_RESET : GPIO_PIN_SET);
 
-      organizer.report_data ( state_vector);
+      organizer.report_data (state_vector);
 
-      if( system_state != old_system_state)
+      if (system_state != old_system_state)
 	{
 	  old_system_state = system_state;
 	  flex_file.append_record (SENSOR_STATUS, &system_state, 1);
 	}
 
-      if( configuration_data_written && flex_file.is_open())
+      if (configuration_data_written && flex_file.is_open ())
 	{
-	  flex_file.append_record (BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof( observations) / sizeof(uint32_t));
+	  if (GNSS_new_data_ready)
+	    {
+	      GNSS_new_data_ready = false;
 
-	  if( system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
-	    flex_file.append_record ( MAGNETOMETER_DATA, (uint32_t*) &external_magnetometer, sizeof( external_magnetometer) / sizeof(uint32_t));
+	      switch (coordinates.sat_fix_type)
+		{
+		case SAT_FIX:
+		  flex_file.append_record (
+		      GNSS_DATA, (uint32_t*) &coordinates,
+		      sizeof(GNSS_coordinates_t) / sizeof(uint32_t));
+		  already_reportet_no_GNSS_fix = false;
+		  break;
+		case SAT_FIX | SAT_HEADING:
+		  flex_file.append_record (
+		      D_GNSS_DATA, (uint32_t*) &coordinates,
+		      sizeof(D_GNSS_coordinates_t) / sizeof(uint32_t));
+		  already_reportet_no_GNSS_fix = false;
+		  break;
+		case SAT_FIX_NONE:
+		default:
+		  if (not already_reportet_no_GNSS_fix)
+		    {
+		      already_reportet_no_GNSS_fix = true;
+		      // send one more record
+		      flex_file.append_record (
+			  GNSS_DATA, (uint32_t*) &coordinates,
+			  sizeof(GNSS_coordinates_t) / sizeof(uint32_t));
+		    }
+		  break;
+		}
+	    }
+
+	  flex_file.append_record (
+	      BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof(observations) / sizeof(uint32_t));
+
+	  if (system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
+	    {
+	      flex_file.append_record (
+		  MAGNETOMETER_DATA, (uint32_t*) &external_magnetometer,
+		  sizeof(external_magnetometer) / sizeof(uint32_t));
+	    }
 	}
     }
 }

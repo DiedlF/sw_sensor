@@ -10,7 +10,7 @@
 uint64_t getTime_usec(void);
 
 COMMON unsigned write_test_counter;
-COMMON Semaphore trigger_flash_fill;
+COMMON Semaphore trigger_flash_fill( 1,0, (char *)"FLASH_FILL");
 
 static void runnable( void *)
 {
