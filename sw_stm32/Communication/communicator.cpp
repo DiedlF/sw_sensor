@@ -249,9 +249,6 @@ void communicator_runnable (void*)
       organizer.on_new_pressure_data( observations.static_pressure, observations.pitot_pressure);
       organizer.update_at_100_Hz( observations, system_state, external_magnetometer);
 
-      if( configuration_data_written && flex_file.is_open())
-	flex_file.append_record ( BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof(measurement_data_t) / sizeof(uint32_t));
-
       // service external commands if any ***************************************************************
       communicator_command_t command;
       if( communicator_command_queue.receive(command, 0))
@@ -351,12 +348,7 @@ void communicator_runnable (void*)
       ++GNSS_count;
       GNSS_count &= 0xff;
 
-      if( vector_average_organizer.counter != 0)
-	{
-	  HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin, GPIO_PIN_SET);
-	}
-      else
-       switch( GNSS_configuration)
+      switch( GNSS_configuration)
       {
 	case GNSS_F9P_F9H:
 	case GNSS_F9P_F9P:
@@ -392,6 +384,7 @@ void communicator_runnable (void*)
 	    essential_sensors_available( GNSS_configuration > GNSS_M9N) ? GPIO_PIN_RESET : GPIO_PIN_SET);
 
       organizer.report_data ( state_vector);
+
       if( system_state != old_system_state)
 	{
 	  old_system_state = system_state;
