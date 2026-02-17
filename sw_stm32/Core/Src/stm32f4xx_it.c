@@ -295,6 +295,7 @@ void USART6_IRQHandler(void)
   /* USER CODE END USART6_IRQn 1 */
 }
 
+#if ACTIVATE_BLUETOOTH_HM19
 
 /* USER CODE BEGIN 1 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
@@ -308,6 +309,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
       UART1_RxCpltCallback();
     }
 }
+
+#endif
 
 /* USER CODE END 1 */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
