@@ -167,10 +167,9 @@ communicator_runnable (void*)
 
   unsigned synchronizer_10Hz = 10; // re-sampling 100Hz -> 10Hz
   unsigned GNSS_watchdog = 0;
+  unsigned GNSS_LED_count = 0;
   unsigned old_system_state = system_state;
-  bool already_reportet_no_GNSS_fix = false;
   bool configuration_data_written = false;
-  unsigned GNSS_count = 0;
 
   // this is the MAIN data acquisition and processing loop **********************************************
   while (true)
@@ -186,8 +185,7 @@ communicator_runnable (void*)
 	    {
 	      uint32_t file_format_version =
 		  flexible_log_file_implementation_t::FLEXIBLE_LOG_FILE_FORMAT_VERSION;
-	      flex_file.append_record (FILE_FORMAT_VERSION,
-				       &file_format_version, 1);
+	      flex_file.append_record (FILE_FORMAT_VERSION, &file_format_version, 1);
 	    }
 
 	  // find all used EEPROM records and write them into the flex file
@@ -197,8 +195,7 @@ communicator_runnable (void*)
 	      EEPROM_file_system_node *node = permanent_data_file.find_datum (
 		  id);
 	      if (node)
-		flex_file.append_record (EEPROM_FILE_RECORD, (uint32_t*) node,
-					 node->size);
+		flex_file.append_record (EEPROM_FILE_RECORD, (uint32_t*) node, node->size);
 	    }
 	}
 
@@ -234,8 +231,7 @@ communicator_runnable (void*)
 
       organizer.on_new_pressure_data (observations.static_pressure,
 				      observations.pitot_pressure);
-      organizer.update_at_100_Hz (observations, system_state,
-				  external_magnetometer);
+      organizer.update_at_100_Hz (observations, system_state, external_magnetometer);
 
       // service external commands if any ***************************************************************
       communicator_command_t command;
@@ -298,7 +294,7 @@ communicator_runnable (void*)
 	    }
 	}
 
-      // vector averaging in case of ground or air calibration activity *********************************
+      // vector averaging in case of ground or air level calibration activity *********************************
       if (vector_average_organizer.counter != 0)
 	{
 	  vector_average_organizer.sum += *(vector_average_organizer.source);
@@ -329,8 +325,7 @@ communicator_runnable (void*)
 	{
 	  synchronizer_10Hz = 10;
 
-	  bool landing_detected_here = organizer.update_at_10Hz (coordinates,
-								 observations);
+	  bool landing_detected_here = organizer.update_at_10Hz (coordinates, observations);
 	  if (landing_detected_here)
 	    {
 	      organizer.cleanup_after_landing ();
@@ -341,8 +336,8 @@ communicator_runnable (void*)
 	}
 
       // service the GNSS LED ****************************************************************************
-      ++GNSS_count;
-      GNSS_count &= 0xff;
+      ++GNSS_LED_count;
+      GNSS_LED_count &= 0xff;
 
       switch (GNSS_configuration)
 	{
@@ -354,19 +349,16 @@ communicator_runnable (void*)
 	      HAL_GPIO_WritePin (
 		  LED_STATUS1_GPIO_Port,
 		  LED_STATUS1_Pin,
-		  ((GNSS_count & 0xe0) == 0xe0) ?
-		      GPIO_PIN_SET : GPIO_PIN_RESET);
+		  ((GNSS_LED_count & 0xe0) == 0xe0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
 	      break;
 	    case SAT_HEADING | SAT_FIX:
 	      HAL_GPIO_WritePin (
 		  LED_STATUS1_GPIO_Port,
 		  LED_STATUS1_Pin,
-		  ((GNSS_count & 0x80) && (GNSS_count & 0x20)) ?
-		      GPIO_PIN_SET : GPIO_PIN_RESET);
+		  ((GNSS_LED_count & 0x80) && (GNSS_LED_count & 0x20)) ? GPIO_PIN_SET : GPIO_PIN_RESET);
 	      break;
 	    default:
-	      HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
-				 GPIO_PIN_RESET);
+	      HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin, GPIO_PIN_RESET);
 	      break;
 	    }
 	  break;
@@ -374,14 +366,12 @@ communicator_runnable (void*)
 	  if (coordinates.sat_fix_type == SAT_FIX)
 	    HAL_GPIO_WritePin (
 		LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
-		((GNSS_count & 0xe0) == 0xe0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+		((GNSS_LED_count & 0xe0) == 0xe0) ? GPIO_PIN_SET : GPIO_PIN_RESET);
 	  else
-	    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin,
-			       GPIO_PIN_RESET);
+	    HAL_GPIO_WritePin ( LED_STATUS1_GPIO_Port, LED_STATUS1_Pin, GPIO_PIN_RESET);
 	  break;
 	default:
-	  ASSERT(false)
-	  ;
+	  ASSERT(false);
 	  break;
 	}
 
@@ -389,8 +379,7 @@ communicator_runnable (void*)
       HAL_GPIO_WritePin (
 	  LED_ERROR_GPIO_Port,
 	  LED_ERROR_Pin,
-	  essential_sensors_available (GNSS_configuration > GNSS_M9N) ?
-	      GPIO_PIN_RESET : GPIO_PIN_SET);
+	  essential_sensors_available (GNSS_configuration > GNSS_M9N) ? GPIO_PIN_RESET : GPIO_PIN_SET);
 
       organizer.report_data (state_vector);
 
@@ -400,40 +389,9 @@ communicator_runnable (void*)
 	  flex_file.append_record (SENSOR_STATUS, &system_state, 1);
 	}
 
+      // write log file
       if (configuration_data_written && flex_file.is_open ())
 	{
-	  if (GNSS_new_data_ready)
-	    {
-	      GNSS_new_data_ready = false;
-
-	      switch (coordinates.sat_fix_type)
-		{
-		case SAT_FIX:
-		  flex_file.append_record (
-		      GNSS_DATA, (uint32_t*) &coordinates,
-		      sizeof(GNSS_coordinates_t) / sizeof(uint32_t));
-		  already_reportet_no_GNSS_fix = false;
-		  break;
-		case SAT_FIX | SAT_HEADING:
-		  flex_file.append_record (
-		      D_GNSS_DATA, (uint32_t*) &coordinates,
-		      sizeof(D_GNSS_coordinates_t) / sizeof(uint32_t));
-		  already_reportet_no_GNSS_fix = false;
-		  break;
-		case SAT_FIX_NONE:
-		default:
-		  if (not already_reportet_no_GNSS_fix)
-		    {
-		      already_reportet_no_GNSS_fix = true;
-		      // send one more record
-		      flex_file.append_record (
-			  GNSS_DATA, (uint32_t*) &coordinates,
-			  sizeof(GNSS_coordinates_t) / sizeof(uint32_t));
-		    }
-		  break;
-		}
-	    }
-
 	  flex_file.append_record (
 	      BASIC_SENSOR_DATA, (uint32_t*) &observations, sizeof(observations) / sizeof(uint32_t));
 
@@ -442,6 +400,31 @@ communicator_runnable (void*)
 	      flex_file.append_record (
 		  MAGNETOMETER_DATA, (uint32_t*) &external_magnetometer,
 		  sizeof(external_magnetometer) / sizeof(uint32_t));
+	    }
+
+	  if (GNSS_new_data_ready)
+	    {
+	      GNSS_new_data_ready = false;
+
+	      switch (coordinates.sat_fix_type)
+		{
+		case SAT_FIX:
+		default:
+		  flex_file.append_record (
+		      GNSS_DATA, (uint32_t*) &coordinates,
+		      sizeof(GNSS_coordinates_t) / sizeof(uint32_t));
+		  break;
+		case SAT_FIX | SAT_HEADING:
+		  flex_file.append_record (
+		      D_GNSS_DATA, (uint32_t*) &coordinates,
+		      sizeof(D_GNSS_coordinates_t) / sizeof(uint32_t));
+		  break;
+		case SAT_FIX_NONE:
+		  flex_file.append_record (
+		      GNSS_DATA, (uint32_t*) &coordinates,
+		      sizeof(GNSS_coordinates_t) / sizeof(uint32_t));
+		  break;
+		}
 	    }
 	}
     }

@@ -840,7 +840,10 @@ COMMON bool user_initiated_reset = false;
 void kill_amok_running_task( void *)
 {
   while ( 0 == register_dump.active_TCB)
-	suspend();
+    suspend();
+
+  // red warning LED on
+  HAL_GPIO_WritePin ( LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
 
   vTaskSuspend( (TaskHandle_t)(register_dump.active_TCB)); // probably the amok running task
 

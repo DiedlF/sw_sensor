@@ -2,6 +2,12 @@
 #include <flexible_log_file_implementation.h>
 #include "CRC16.h"
 #include "my_assert.h"
+#include "common.h"
+#include "system_configuration.h"
+
+#if ANALYZE_WRITE_PERFORMANCE
+COMMON unsigned used_size;
+#endif
 
 bool flexible_log_file_implementation_t::open (char *file_name)
 {
@@ -48,11 +54,20 @@ bool flexible_log_file_implementation_t::flush_buffer( void)
     {
       ASSERT( not( status & FILLING_LOW));
       f_write( &out_file, (const char *)buffer, size_bytes, &writtenBytes);
+
+#if ANALYZE_WRITE_PERFORMANCE // using debugger
+      used_size = (write_pointer - second_part) > used_size
+	  ? write_pointer - second_part : used_size;
+#endif
     }
   else if( ( status & WRITING_HIGH))
     {
       ASSERT( not( status & FILLING_HIGH));
       f_write( &out_file, (const char *)second_part, size_bytes, &writtenBytes);
+#if ANALYZE_WRITE_PERFORMANCE
+      used_size = (write_pointer - buffer) > used_size
+	  ? write_pointer - buffer : used_size;
+#endif
     }
 
   status &= ~(WRITING_LOW | WRITING_HIGH);
