@@ -45,7 +45,7 @@ void CAN_task_runnable( void *)
   while( true)
     {
       notify_take(); // synchronize with data acquisition
-      CAN_output( output_data, horizon_available);
+      CAN_output( observations, coordinates, state_vector, horizon_available);
 
       --decimator_1_second;
       if( decimator_1_second < 1)

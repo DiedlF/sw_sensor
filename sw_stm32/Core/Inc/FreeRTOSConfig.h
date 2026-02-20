@@ -158,6 +158,7 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 /* Normal assert() semantics without relying on the provision of an assert.h
 header file. */
 /* USER CODE BEGIN 1 */
+void emergency_write_crashdump( char * file, int line);
 #define configASSERT( x ) if((x)==0) emergency_write_crashdump( (char *)__FILE__, __LINE__);
 /* USER CODE END 1 */
 

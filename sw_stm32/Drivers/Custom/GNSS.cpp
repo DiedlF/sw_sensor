@@ -52,7 +52,7 @@ void GNSS_data_lock( unsigned function)
     GNSS_data_guard.release();
 }
 
-GNSS_type::GNSS_type( coordinates_t & coo) :
+GNSS_type::GNSS_type( D_GNSS_coordinates_t & coo) :
 		coordinates( coo),
 		fix_type(FIX_none),
 		num_SV(0)
@@ -110,12 +110,9 @@ GNSS_Result GNSS_type::update(const uint8_t * data)
 
 	GNSS_data_guard.release();
 
-	float velocity_north = pvt.velocity[NORTH] * SCALE_MM;
-	float velocity_east  = pvt.velocity[EAST] * SCALE_MM;
-
-	coordinates.velocity[NORTH] = velocity_north;
-	coordinates.velocity[EAST]  = velocity_east;
-	coordinates.velocity[DOWN]  = pvt.velocity[DOWN]  * SCALE_MM;
+	coordinates.velocity[NORTH] = pvt.speed[NORTH] * SCALE_MM;
+	coordinates.velocity[EAST]  = pvt.speed[EAST]  * SCALE_MM;
+	coordinates.velocity[DOWN]  = pvt.speed[DOWN]  * SCALE_MM;
 
 	fix_type = (FIX_TYPE) (pvt.fix_type);
 	if( (pvt.fix_flags & 1) == 0)

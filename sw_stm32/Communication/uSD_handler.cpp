@@ -34,28 +34,19 @@
 #include "read_configuration_file.h"
 #include "communicator.h"
 #include "emergency.h"
+#include "EEPROM_data_file_implementation.h"
 #include "uSD_handler.h"
 #include "watchdog_handler.h"
 #include "magnetic_induction_report.h"
-#if ACTIVATE_MAGNETIC_3D_MECHANIM
-#include "compass_calibrator_3D.h"
-#endif
-#include "SHA256.h"
-#include "EEPROM_data_file_implementation.h"
 #include "persistent_data_file.h"
 #include "system_state.h"
 #include "reminder_flag.h"
+#include "uSD_helpers.h"
 
-extern EEPROM_file_system permanent_data_file;
 COMMON reminder_flag perform_after_landing_actions;
 
-ROM uint8_t SHA_INITIALIZATION[] = "presently a well-known string";
-
 extern Semaphore setup_file_handling_completed;
-extern uint32_t UNIQUE_ID[4];
 
-COMMON char *crashfile;
-COMMON unsigned crashline;
 COMMON bool dump_sensor_readings;
 
 COMMON FATFS fatfs;
@@ -64,546 +55,7 @@ extern DMA_HandleTypeDef hdma_sdio_rx;
 extern DMA_HandleTypeDef hdma_sdio_tx;
 extern uint64_t FAT_time; //!< DOS FAT time for file usage
 
-#define MEM_BUFSIZE 2048 // bytes
-#define RESERVE 512
-COMMON uint8_t __ALIGNED(MEM_BUFSIZE) mem_buffer[MEM_BUFSIZE + RESERVE];
-
-//!< format date and time from sat fix data
-char * format_date_time( char * target)
-{
-  format_2_digits( target, output_data.obs.c.year);
-  format_2_digits( target, output_data.obs.c.month);
-  format_2_digits( target, output_data.obs.c.day);
-  *target ++ = '_';
-  format_2_digits( target, output_data.obs.c.hour);
-  format_2_digits( target, output_data.obs.c.minute);
-  format_2_digits( target, output_data.obs.c.second);
-  *target=0;
-  return target;
-}
-
-extern RestrictedTask uSD_handler_task; // will come downwards ...
-
-//!< write crash dump file and force MPU reset via watchdog
-void write_crash_dump( void)
-{
-  FRESULT fresult;
-  FIL fp;
-  char *buffer = (char *)mem_buffer; // use global buffer here
-  char *next = buffer;
-  UINT writtenBytes = 0;
-
-  acquire_privileges(); // ... need to access trace data etc
-
-#if configUSE_TRACE_FACILITY // ************************************************
-#include "trcConfig.h"
-  vTraceStop(); // don't trace ourselves ...
-#endif
-
-  next = format_date_time( buffer);
-  append_string (next, ".CRASHDUMP");
-
-  fresult = f_open (&fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
-  if (fresult != FR_OK)
-    goto emergency_exit;
-
-  next = buffer;
-  append_string( next, (char*)"Firmware: ");
-  append_string( next, GIT_TAG_INFO);
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  next = buffer;
-  append_string( next, (char*)"Hardware: ");
-  utox( next, UNIQUE_ID[0], 8);
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  next = buffer;
-  append_string( next, crashfile);
-  append_string( next, (char*)" Line: ");
-  next = my_itoa( next, crashline);
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  next = buffer;
-  append_string( next, (char*)"Task:     ");
-  append_string( next, pcTaskGetName( (TaskHandle_t)(register_dump.active_TCB)));
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  next = buffer;
-  append_string( next, (char*)"IPSR:     ");
-  utox( next, register_dump.IPSR);
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  next = buffer;
-  append_string( next, (char*)"PC:       ");
-  utox( next, register_dump.stacked_pc);
-  newline( next);
-  append_string( next, (char*)"LR:       ");
-  utox( next, register_dump.stacked_lr);
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  next = buffer;
-  append_string( next, (char*)"BusFA:    ");
-  utox(  next, register_dump.Bus_Fault_Address);
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  next = buffer;
-  append_string( next, (char*)"MemA:     ");
-  utox( next, register_dump.Bad_Memory_Address);
-  newline( next);
-
-  append_string( next, (char*)"MemFS:    ");
-  utox( next, register_dump.Memory_Fault_status);
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  next = buffer;
-  append_string( next, (char*)"FPU_S:    ");
-  utox( next, register_dump.FPU_StatusControlRegister);
-  newline( next);
-
-  append_string( next, (char*)"UsgFS:    ");
-  utox( next, register_dump.Usage_Fault_Status_Register);
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  next = buffer;
-  append_string( next, (char*)"HardFS:   ");
-  utox( next, register_dump.Hard_Fault_Status);
-  newline( next);
-
-  f_write (&fp, buffer, next-buffer, &writtenBytes);
-
-  for( unsigned i=0; i<32; ++i)
-    {
-
-    // only if the dump is populated
-      if( FPU_register_dump[i] != 0x00)
-	{
-	  next = buffer;
-	  append_string( next, (char*)"FPU dump:");
-	  newline( next);
-
-	  for( unsigned i=0; i<32; ++i)
-	    {
-	      utox( next, FPU_register_dump[i]);
-	      newline( next);
-	    }
-	  f_write (&fp, buffer, next-buffer, &writtenBytes);
-	  break;
-	}
-    }
-  fresult = f_close(&fp);
-  if (fresult != FR_OK)
-    goto emergency_exit;
-
-  delay( 100);
-
-#if configUSE_TRACE_FACILITY // ************************************************
-
-extern RecorderDataType myTraceBuffer;
-
-  next = format_date_time( buffer);
-  append_string (next, ".bin");
-  fresult = f_open (&fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
-  if (fresult != FR_OK)
-    goto emergency_exit;
-
-  for( uint8_t *ptr=(uint8_t *)&myTraceBuffer; ptr < (uint8_t *)&myTraceBuffer + sizeof(RecorderDataType); ptr += MEM_BUFSIZE)
-    {
-      unsigned blocksize = (uint8_t *)&myTraceBuffer + sizeof(RecorderDataType) - ptr;
-      if( blocksize > MEM_BUFSIZE)
-	blocksize = MEM_BUFSIZE;
-      // data needs to be copied out of CCM RAM
-      memcpy( mem_buffer, ptr, blocksize);
-      fresult = f_write (&fp, mem_buffer, blocksize, &writtenBytes);
-      if( writtenBytes < blocksize)
-	break;
-    }
-  fresult = f_close(&fp);
-  if (fresult != FR_OK)
-    goto emergency_exit;
-
-  delay( 100);
-
-#endif // ************************************************************************
-
-  // log one complete set of output data independent of data logging status
-  next = format_date_time( buffer);
-  *next++ = '.';
-  *next++  = 'f';
-  format_2_digits( next, sizeof( output_data_t) / sizeof(float));
-
-  fresult = f_open ( &fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
-  if (fresult != FR_OK)
-    goto emergency_exit;
-
-  fresult = f_write (&fp, (uint8_t*) &output_data, sizeof( output_data_t), &writtenBytes);
-  f_close( &fp);
-
-emergency_exit:
-  f_mount ( 0, "", 0); // unmount uSD
-  delay( 100);
-  HAL_SD_DeInit (&hsd);
-  delay( 100);
-
-  while( true)
-    /* wake watchdog */;
-}
-
-bool write_EEPROM_dump( const char * filename)
-{
-  FRESULT fresult;
-  FIL fp;
-  char buffer[128];
-  char *next = buffer;
-  SHA256 sha;
-  int32_t writtenBytes = 0;
-
-  append_string (next, filename);
-  append_string (next, ".EEPROM");
-  *next=0;
-
-  fresult = f_open (&fp, buffer, FA_CREATE_ALWAYS | FA_WRITE);
-  if (fresult != FR_OK)
-    return fresult;
-
-  sha.update( SHA_INITIALIZATION, sizeof( SHA_INITIALIZATION));
-
-  extern uint8_t * __fini_array_end;
-  unsigned block_size = 1024;
-  for( uint8_t * block_start = (uint8_t *)0x08000000;  block_start < __fini_array_end; block_start += block_size)
-    {
-      uint8_t * block_end = block_start + block_size;
-      if( block_end > __fini_array_end)
-	block_end = __fini_array_end;
-      sha.update( block_start, block_end - block_start);
-      delay(1); // beware of our watchdog !
-    }
-  uint8_t digest[32];
-  sha.make_digest(digest);
-
-  delay(1); // watchdog ...
-
-  sha.reset();
-  sha.update( SHA_INITIALIZATION, sizeof( SHA_INITIALIZATION));
-
-  newline(next); // first line = my filename (incl. time)
-  append_string( next, "SHA256(Flash Program) = \r\n");
-
-  for( unsigned i=0; i<16; ++i)
-      utox( next, (uint32_t)(digest[i]), 2);
-  newline(next);
-  for( unsigned i=0; i<16; ++i)
-      utox( next, (uint32_t)(digest[i+16]), 2);
-  newline(next);
-
-  (void)f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
-  sha.update( (uint8_t *)buffer, next-buffer);
-
-  next = buffer;
-  append_string( next, "Fw = ");
-  append_string( next, GIT_TAG_INFO);
-  newline(next);
-  append_string( next, "Hw = ");
-  utox( next, UNIQUE_ID[0], 8);
-  utox( next, UNIQUE_ID[1], 8);
-  utox( next, UNIQUE_ID[2], 8);
-  utox( next, UNIQUE_ID[3], 8);
-  newline(next);
-
-  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
-  if( (fresult != FR_OK) || (writtenBytes != (next-buffer)))
-    {
-      f_close(&fp);
-      return fresult; // give up ...
-    }
-  sha.update( (uint8_t *)buffer, next-buffer);
-
-  for( unsigned index = 0; index < PERSISTENT_DATA_ENTRIES; ++index)
-    {
-      float value;
-      bool result = read_EEPROM_value( PERSISTENT_DATA[index].id, value);
-      if( result == HAL_OK)
-	{
-	  if( PERSISTENT_DATA[index].is_an_angle)
-	    value *= 180.0 / M_PI_F; // format it human readable
-
-	  next = buffer;
-	  append_string( next, PERSISTENT_DATA[index].mnemonic);
-	  append_string (next," = ");
-	  next = my_ftoa (next, value);
-	  newline(next);
-
-	  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
-	  sha.update( (uint8_t *)buffer, next-buffer);
-	  if( (fresult != FR_OK) || (writtenBytes != (next-buffer)))
-	    {
-	      f_close(&fp);
-	      return fresult; // give up ...
-	    }
-	}
-      }
-
-  float32_t mag_calib_param[4*3];
-
-  if( permanent_data_file.retrieve_data( MAG_SENSOR_XFER_MATRIX, 4*3, (uint32_t *)mag_calib_param))
-    {
-      for( unsigned i=0; i< 4*3; ++i)
-	{
-	  next = buffer;
-	  append_string( next, "Mag_");
-	  utox( next, i, 1);
-	  append_string( next, " = ");
-	  next = my_ftoa (next, mag_calib_param[i]);
-	  newline( next);
-	  sha.update( (uint8_t *)buffer, next-buffer);
-	  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
-	  if( (fresult != FR_OK) || (writtenBytes != (next-buffer)))
-	    {
-	      f_close(&fp);
-	      return fresult; // give up ...
-	    }
-	}
-    }
-
-  if( permanent_data_file.retrieve_data( EXT_MAG_SENSOR_XFER_MATRIX, 4*3, (uint32_t *)mag_calib_param))
-    {
-      for( unsigned i=0; i< 4*3; ++i)
-	{
-	  next = buffer;
-	  append_string( next, "XMag_");
-	  utox( next, i, 1);
-	  append_string( next, " = ");
-	  next = my_ftoa (next, mag_calib_param[i]);
-	  newline( next);
-	  sha.update( (uint8_t *)buffer, next-buffer);
-	  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
-	  if( (fresult != FR_OK) || (writtenBytes != (next-buffer)))
-	    {
-	      f_close(&fp);
-	      return fresult; // give up ...
-	    }
-	}
-    }
-
-  uint16_t option = *(uint16_t *) 0x1fffc000;
-  next = buffer;
-  append_string( next, "Option bytes = ");
-  utox( next, option >> 8, 2);
-  newline(next);
-  sha.update( (uint8_t *)buffer, next-buffer);
-  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
-  if( (fresult != FR_OK) || (writtenBytes != (next-buffer)))
-    {
-      f_close(&fp);
-      return fresult; // give up ...
-    }
-
-  sha.make_digest(digest);
-  next = buffer;
-  append_string( next, "SHA256(text above) = \r\n");
-
-  for( unsigned i=0; i<16; ++i)
-      utox( next, (uint32_t)(digest[i]), 2);
-  newline(next);
-
-  for( unsigned i=0; i<16; ++i)
-      utox( next, (uint32_t)(digest[i+16]), 2);
-
-  newline(next);
-
-  fresult = f_write (&fp, buffer, next-buffer, (UINT*) &writtenBytes);
-  f_close(&fp);
-  return fresult;
-}
-
-//!< find software image file and load it if applicable
-bool
-read_software_update (void)
-{
-  FIL the_file;
-  FILINFO fno;
-  FRESULT fresult;
-  UINT bytes_read;
-  DIR dj;
-
-  uint32_t highest_sw_version_found = 0;
-  char highest_sw_version_fname[_MAX_LFN + 1];
-
-  uint32_t flash_address = 0x60000;
-  unsigned status;
-  bool last_block_read = false;
-
-  // find all *.bin files which could be software update images
-  fresult = f_findfirst (&dj, &fno, "", "????*.bin");
-  if (fresult != FR_OK)
-    return false;
-
-  while (fresult == FR_OK)
-    {
-      // try to open the next image file
-      fresult = f_open (&the_file, (char*) &fno.fname[0], FA_READ);
-      if (fresult != FR_OK)
-	return false;
-
-      // read first block to check hardware and firmware version
-      fresult = f_read (&the_file, mem_buffer, MEM_BUFSIZE, &bytes_read);
-      if (fresult != FR_OK)
-	return false;
-      f_close (&the_file);
-
-      uint32_t file_hw_version = mem_buffer[23] | (mem_buffer[22] << 8)
-	  | (mem_buffer[21] << 16) | (mem_buffer[20] << 24);
-      uint64_t file_magic_number = 0;
-      for (int i = 7; i >= 0; i--)
-	{
-	  file_magic_number <<= 8;
-	  file_magic_number |= (uint64_t) mem_buffer[i];
-	}
-
-      if ((file_hw_version == 0x01010100)
-	  && (file_magic_number == 0x1c8073ab20853579))
-	{
-	  // The files hw version is for the larus sensor and the larus magic number is correct.
-
-	  uint32_t file_sw_version = mem_buffer[27] | (mem_buffer[26] << 8)
-	      | (mem_buffer[25] << 16) | (mem_buffer[24] << 24);
-	  if (file_sw_version > highest_sw_version_found)
-	    {
-
-	      // Search for the highest version and copy filename
-	      highest_sw_version_found = file_sw_version;
-	      for (int i = 0; i < _MAX_LFN; i++)
-		{
-		  highest_sw_version_fname[i] = fno.fname[i];
-		}
-	    }
-	}
-
-      fresult = f_findnext (&dj, &fno);
-      if ((fresult != FR_OK) || (fno.fname[0] == 0))
-	break; // now more files found, break loop-
-    }
-
-#if DISALLOW_DOWNGRADE
-  if (highest_sw_version_found <= GIT_TAG_DEC)
-      return false; //The firmware image with the highest version is it nothing new. Finishing here.
-
-#endif
-
-  // try to open new software image file
-  fresult = f_open (&the_file, highest_sw_version_fname, FA_READ);
-  if (fresult != FR_OK)
-    return false;
-
-  // read first block
-  fresult = f_read (&the_file, mem_buffer, MEM_BUFSIZE, &bytes_read);
-  if ((fresult != FR_OK) || (bytes_read < MEM_BUFSIZE))
-    {
-      f_close (&the_file);
-      return false;
-    }
-
-  // compare against flash content
-  uint32_t *mem_ptr;
-  uint32_t *flash_ptr;
-  bool image_is_equal = true;
-
-  for (mem_ptr = (uint32_t*) mem_buffer, flash_ptr = (uint32_t*) flash_address;
-      mem_ptr < (uint32_t*) (mem_buffer + MEM_BUFSIZE); ++mem_ptr, ++flash_ptr)
-    if (*mem_ptr != *flash_ptr)
-      {
-	image_is_equal = false;
-	break;
-      }
-
-  if (image_is_equal)
-    return false;
-
-  status = HAL_FLASH_Unlock ();
-  if (status != HAL_OK)
-    return false;
-
-  // for an unknown reason error flags need to be reset
-  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP);
-  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_OPERR);
-  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_WRPERR);
-  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGAERR);
-  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGPERR);
-  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_PGSERR);
-
-  // erase flash range 0x08080000 - 0x080DFFFF
-  uint32_t SectorError = 0;
-  FLASH_EraseInitTypeDef pEraseInit;
-  pEraseInit.TypeErase = FLASH_TYPEERASE_SECTORS;
-  pEraseInit.NbSectors = 1;
-  pEraseInit.VoltageRange = VOLTAGE_RANGE_3;
-  pEraseInit.Sector = FLASH_SECTOR_7;
-  status = HAL_FLASHEx_Erase (&pEraseInit, &SectorError);
-  if ((status != HAL_OK) || (SectorError != 0xffffffff))
-    return false;
-  pEraseInit.Sector = FLASH_SECTOR_8;
-  status = HAL_FLASHEx_Erase (&pEraseInit, &SectorError);
-  if ((status != HAL_OK) || (SectorError != 0xffffffff))
-    return false;
-  pEraseInit.Sector = FLASH_SECTOR_9;
-  status = HAL_FLASHEx_Erase (&pEraseInit, &SectorError);
-  if ((status != HAL_OK) || (SectorError != 0xffffffff))
-    return false;
-
-  for (;;)
-    {
-      for (uint32_t *data_pointer = (uint32_t*) mem_buffer;
-	  data_pointer < (uint32_t*) (mem_buffer + bytes_read); ++data_pointer)
-	{
-	  status = HAL_FLASH_Program ( TYPEPROGRAM_WORD, flash_address,
-				      (uint64_t) *data_pointer);
-	  if (status != HAL_OK)
-	    break;
-	  flash_address += sizeof(uint32_t);
-	}
-
-      if (last_block_read)
-	{
-	  HAL_FLASH_Lock ();
-	  delay (100); // wait until uSD operations are finished
-	  fresult = f_mount (0, "", 0); // unmount file system
-	  delay (100); // wait until uSD operations are finished
-	  return true;
-	}
-
-      fresult = f_read (&the_file, mem_buffer, MEM_BUFSIZE, &bytes_read);
-      if (fresult != FR_OK)
-	{
-	  f_close (&the_file);
-	  break;
-	}
-
-      if (bytes_read < MEM_BUFSIZE)
-	{
-	  f_close (&the_file);
-	  last_block_read = true;
-	}
-    }
-  HAL_FLASH_Lock ();
-  return false;
-}
+extern RestrictedTask uSD_handler_task;
 
 //!< this executable takes care of all uSD reading and writing
 void uSD_handler_runnable (void*)
@@ -706,7 +158,7 @@ restart:
   char out_filename[30];
 
   // wait until a GNSS timestamp is available.
-  while (output_data.obs.c.sat_fix_type == 0)
+  while ( coordinates.sat_fix_type == 0)
     {
       if( crashfile && ! user_initiated_reset)
 	  write_crash_dump();
@@ -716,44 +168,34 @@ restart:
   // repeat writing log files for all successive flights
   while(true)
     {
-      // here when opening a new output file we decide if the external magnetometer is active
-      // if this state changes while we are logging we do not re-decide
-      unsigned recorder_data_size =
-	  (system_state & EXTERNAL_MAGNETOMETER_AVAILABLE)
-	  ? sizeof( extended_observations_type)
-	  : sizeof( observations_type);
-
-      UINT writtenBytes = 0;
-      uint8_t *buf_ptr = mem_buffer;
-
       // generate filename based on timestamp
       char * next = out_filename;
+
+      fresult = f_stat("eeprom", &filinfo);
+      if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)!=0))
+	{
+	  append_string( next, "eeprom/");
+	  next = format_date_time( next, coordinates);
+	  acquire_privileges(); //reading sensitive flash sections
+	  write_EEPROM_dump( out_filename); // now we have date+time, start logging
+	  drop_privileges();
+	}
+
+      next = out_filename;
       append_string( next, "logger/");
-      next = format_date_time( next);
+      next = format_date_time( next, coordinates);
+      append_string( next, ".lrsx");
 
-      acquire_privileges();
-      write_EEPROM_dump( out_filename); // now we have date+time, start logging
-      drop_privileges();
-
-      *next++ = '.';
-      *next++  = 'f';
-      format_2_digits( next, recorder_data_size / sizeof(float));
-
-      fresult = f_open (&the_file, out_filename, FA_CREATE_ALWAYS | FA_WRITE);
-      if (fresult != FR_OK)
+      bool success = flex_file.open(out_filename);
+      if ( not success)
 	{
 	  while( true)
 	    {
-	    notify_take (true); // wait for synchronization by crash detection
-	    if( crashfile)
-	      write_crash_dump();
+		notify_take (true); // wait for synchronization by crash detection
+		if( crashfile && ! user_initiated_reset)
+		  write_crash_dump();
 	    }
-	notify_take (true); // wait for synchronization by crash detection
-	if( crashfile && ! user_initiated_reset)
-	  write_crash_dump();
 	}
-
-      int32_t sync_counter=0;
 
       // repeat: fill buffer with data chunks, write it to uSD and copy remaining data to start of buffer
       // this logger loop is synchronized by the communicator object
@@ -763,53 +205,35 @@ restart:
 
 	  if( crashfile && ! user_initiated_reset)
 	    {
-	      // write remaining logger data and close the file
-	      (void) f_write (&the_file, mem_buffer, buf_ptr - mem_buffer, &writtenBytes);
-	      f_close(&the_file);
-
+	      flex_file.close();
 	      write_crash_dump();
 	    }
 
-	  memcpy (buf_ptr, (uint8_t*) &(output_data.obs), recorder_data_size);
-	  buf_ptr += recorder_data_size;
+	  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
+	  success = flex_file.flush_buffer();
+	  success &= flex_file.sync_file();
+	  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
 
-	  if (buf_ptr < mem_buffer + MEM_BUFSIZE)
-	    continue; // buffer only filled partially
-
-	  fresult = f_write (&the_file, mem_buffer, MEM_BUFSIZE, &writtenBytes);
-	  if( ! ((fresult == FR_OK) && (writtenBytes == MEM_BUFSIZE)))
+	  if( not success)
 	      {
-		HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
-		while( true)
-		  {
-		  notify_take (true); // wait for synchronization by crash detection
-		  if( crashfile && ! user_initiated_reset)
-		    write_crash_dump();
-		  }
+	      flex_file.close(); // at least: try to ...
+
+	      HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
+	      while( true)
+		{
+		notify_take (true); // wait for synchronization by crash detection
+		if( crashfile && ! user_initiated_reset)
+		  write_crash_dump();
+		}
 	      }
 
-	  uint32_t rest = buf_ptr - (mem_buffer + MEM_BUFSIZE);
-	  memcpy (mem_buffer, mem_buffer + MEM_BUFSIZE, rest);
-	  buf_ptr = mem_buffer + rest;
-
-    #if uSD_LED_STATUS
-	  if( (sync_counter & 0x3) == 0)
-	    HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
-	  else
-	    HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
-    #endif
-
-	  if( ++sync_counter >= 16)
+	  if( perform_after_landing_actions.test_and_reset())
 	    {
-	      sync_counter = 0;
-	      f_sync (&the_file);
+	      flex_file.block_input(); // avoid buffer overrun
+	      flex_file.close();
 
-	      if( perform_after_landing_actions.test_and_reset())
-		{
-		  f_close(&the_file);
-		  delay(100); // just to be sure everything is written
-		  break; /* break inner while loop and start again, which will start a new set of logfiles */
-		}
+	      delay(250); // just to be sure everything is written
+	      break; /* break inner while loop and start again, which will start a new set of logfiles */
 	    }
 	}
     }
@@ -825,14 +249,14 @@ static TaskParameters_t p =
   uSD_stack_buffer,
     {
       { COMMON_BLOCK, COMMON_SIZE, portMPU_REGION_READ_WRITE },
-      { 0, 0, 0},
+      { (void *)0x080C0000, 0x00040000, portMPU_REGION_READ_WRITE}, // EEPROM
       { 0, 0, 0}
       } 
     };
 
 COMMON RestrictedTask uSD_handler_task (p);
 
-extern "C" void sync_logger(void)
+void sync_logger(void)
   {
     uSD_handler_task.notify_give ();
   }
@@ -857,7 +281,10 @@ COMMON bool user_initiated_reset = false;
 void kill_amok_running_task( void *)
 {
   while ( 0 == register_dump.active_TCB)
-	suspend();
+    suspend();
+
+  // red warning LED on
+  HAL_GPIO_WritePin ( LED_ERROR_GPIO_Port, LED_ERROR_Pin, GPIO_PIN_SET);
 
   vTaskSuspend( (TaskHandle_t)(register_dump.active_TCB)); // probably the amok running task
 

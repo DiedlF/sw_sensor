@@ -77,6 +77,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
 #include "embedded_memory.h"
+#include "my_assert.h"
 
 /** @addtogroup STM32F4xx_HAL_Driver
   * @{
@@ -168,7 +169,7 @@ HAL_StatusTypeDef HAL_FLASH_Program(uint32_t TypeProgram, uint32_t Address, uint
   while(
       (HAL_OK != (status = FLASH_WaitForLastOperation((uint32_t)FLASH_TIMEOUT_VALUE)))
 	  )
-    ; // todo patch dangerous spinlock
+    ASSERT( 0); // we never want to arrive here !
   
   if(status == HAL_OK)
   {

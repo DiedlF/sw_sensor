@@ -71,12 +71,12 @@ re_initialize: // in case of USART hangup
     unsigned i=0;
     for ( synchronous_timer t (10); true; t.sync ())
       {
-        decimate_sensor_observations( output_data);
+        decimate_sensor_observations( observations, state_vector);
         ++i;
-        if( i >=50) // => 2 Hz output rate
+        if( i >= 50) // => 2 Hz output rate
   	{
   	  i=0;
-  	  format_sensor_dump( output_data, NMEA_buf);
+  	  format_sensor_dump( observations, coordinates, state_vector, NMEA_buf);
   	  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, (uint8_t *)NMEA_buf.string, NMEA_buf.length);
   	  USBD_CDC_TransmitPacket(&hUsbDeviceFS);
 
@@ -96,7 +96,7 @@ re_initialize: // in case of USART hangup
   for (synchronous_timer t (NMEA_REPORTING_PERIOD); true; t.sync ())
     {
       NMEA_buf.length = 0; // start at the beginning of the buffer
-      format_NMEA_string_fast( output_data, NMEA_buf, horizon_available);
+      format_NMEA_string_fast( state_vector, NMEA_buf, horizon_available);
 #if NMEA_DECIMATION_RATIO == 0
       GNSS_data_guard.lock();
       format_NMEA_string_slow( output_data, NMEA_buf);
@@ -107,7 +107,7 @@ re_initialize: // in case of USART hangup
 	  decimating_counter = NMEA_DECIMATION_RATIO;
 	  bool ok = GNSS_data_guard.lock(100);
 	  ASSERT( ok);
-	  format_NMEA_string_slow( output_data, NMEA_buf);
+	  format_NMEA_string_slow( observations, coordinates, state_vector, NMEA_buf);
 	  GNSS_data_guard.release();
 	}
 #endif
