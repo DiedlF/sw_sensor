@@ -227,8 +227,6 @@ CAN_listener_task_runnable (void*)
 
 		  case CMD_CALCULATE:
 		    communicator_command_queue.send( SET_SENSOR_ROTATION, 1);
-extern Semaphore trigger_flash_fill;
-trigger_flash_fill.signal();// todo patch
 		    break;
 
 		  case CMD_TUNE:
