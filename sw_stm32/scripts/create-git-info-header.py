@@ -4,6 +4,7 @@
 import subprocess
 import re
 import os
+import tomllib
 
 filename = "Core/Inc/git-commit-version.h"
 if os.path.isfile(filename):
@@ -18,25 +19,40 @@ second = 0xff
 third = 0xff
 build = 0xff
 
+pack_toml_file = "scripts/pack.toml"
 try:
-    # Try to match tag and build number
-    match = re.match('(?P<first>[0-9]*).(?P<second>[0-9]*).(?P<third>[0-9]*)-(?P<build>[0-9]*)-.*', version_string)
+    with open(pack_toml_file, "rb") as file:
+        pack_cfg = tomllib.load(file)
+    sw_version = pack_cfg["image"]["sw_version"]
+    match = re.match(r'(?P<first>[0-9]+)\.(?P<second>[0-9]+)\.(?P<third>[0-9]+)\.(?P<build>[0-9]+)$', sw_version)
+    if match is None:
+        raise ValueError(f"invalid sw_version in {pack_toml_file}: {sw_version}")
     first = int(match.group('first'))
     second = int(match.group('second'))
     third = int(match.group('third'))
     build = int(match.group('build'))
-
+    print(f"Using manual firmware version from {pack_toml_file}: {sw_version}")
 except Exception as e:
-    # Try to match tag only from e newly created version.
+    print("Falling back to git-derived tag version information:", e)
     try:
-        match = re.match('(?P<first>[0-9]*).(?P<second>[0-9]*).(?P<third>[0-9]*).*', version_string)
+        # Try to match tag and build number
+        match = re.match('(?P<first>[0-9]*).(?P<second>[0-9]*).(?P<third>[0-9]*)-(?P<build>[0-9]*)-.*', version_string)
         first = int(match.group('first'))
         second = int(match.group('second'))
         third = int(match.group('third'))
-        build = 0
+        build = int(match.group('build'))
 
     except Exception as e:
-        print("Something went wrong getting the TAG version information!: ", e)
+        # Try to match tag only from a newly created version.
+        try:
+            match = re.match('(?P<first>[0-9]*).(?P<second>[0-9]*).(?P<third>[0-9]*).*', version_string)
+            first = int(match.group('first'))
+            second = int(match.group('second'))
+            third = int(match.group('third'))
+            build = 0
+
+        except Exception as e:
+            print("Something went wrong getting the TAG version information!: ", e)
 
 tagdec = '#define GIT_TAG_DEC 0x{:02x}{:02x}{:02x}{:02x}'.format(first,second,third,build)
 print(tagdec)
@@ -62,39 +78,9 @@ with open(filename, "w+") as file:
     file.write(tagdec+'\n')
 
 
-# Put the Git Tag information into the pack.toml file for software update generation
-tomltemplate = "scripts/template_pack.toml"
-tomldestination = "scripts/pack.toml"
-filelines = None
-with open(tomltemplate, "r") as file:
-    # Read current file lines into a lis
-    filelines = file.readlines()
-
-# Update sw_version information in line
-for index in range(len(filelines)):
-    if 'sw_version' in filelines[index]:
-        filelines[index] = 'sw_version = \"{}.{}.{}.{}\"'.format(first,second,third,build)
-    if 'name = "larus_sensorVERSION.bin' in filelines[index]:
-        filelines[index] = 'name = \"larus_sensor_v{}-{}-{}-{}.bin\"\n'.format(first,second,third,build)
-
-# Write updated file content
-with open(tomldestination, "w") as file:
-    file.writelines(filelines)
-    
-# Put the same information also into the pack_legacy.toml file for the creation of binary images for updates from sensor versions up to 0.4.0
-tomltemplate = "scripts/template_pack_legacy.toml"
-tomldestination = "scripts/pack_legacy.toml"
-filelines = None
-with open(tomltemplate, "r") as file:
-    # Read current file lines into a lis
-    filelines = file.readlines()
-
-# Update sw_version information in line
-for index in range(len(filelines)):
-    if 'sw_version' in filelines[index]:
-        filelines[index] = 'sw_version = \"{}.{}.{}.{}\"'.format(first,second,third,build)
-
-# Write updated file content
-with open(tomldestination, "w") as file:
-    file.writelines(filelines)
+# Keep pack.toml and pack_legacy.toml user-controlled.
+# They are used for packaging metadata and should not be overwritten
+# as a side effect of compilation. The build only regenerates the
+# git-commit-version header above.
+print("Leaving scripts/pack.toml and scripts/pack_legacy.toml unchanged")
 
