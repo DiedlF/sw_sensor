@@ -29,8 +29,9 @@
 - The used submodule lib commit needs a tag here. https://github.com/larus-breeze/sw_algorithms_lib/tags  Create one if missing for used commit.
 - Add analyzer lib binaries here: https://github.com/larus-breeze/sw_tools/tree/master/larus_data/_internal for analysis and flight_player purposes
 - Create releases from master branch commits only. Merge changes first. Check that the master branch is pushed and not in a dirty state with git status
-- Chose the next version number with the format x.y.z (e.g. 9.9.9) https://github.com/larus-breeze/sw_sensor/releases
-- Assign a tag to the current commit e.g. with: git tag 9.9.9
-- Push tag: git push origin tag 9.9.9
-- Create a firmware update binary with the pack tools in sw_stm32
+- The sensor version number is set **manually on request** for the release/build in this workspace.
+- Choose the requested version number with the format x.y.z (e.g. 9.9.9) and set it explicitly before building release artifacts.
+- If a public release is intended, assign the corresponding tag to the current commit e.g. with: `git tag 9.9.9`
+- Push tag: `git push origin tag 9.9.9`
+- Create a firmware update binary with the pack tools in sw_stm32 using that manually selected version number.
 - Go to https://github.com/larus-breeze/sw_sensor/releases create a new release for the tagged commit, write release notes and attach the firmware binary
