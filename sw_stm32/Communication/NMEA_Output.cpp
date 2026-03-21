@@ -106,9 +106,12 @@ re_initialize: // in case of USART hangup
 	{
 	  decimating_counter = NMEA_DECIMATION_RATIO;
 	  bool ok = GNSS_data_guard.lock(100);
-	  ASSERT( ok);
-	  format_NMEA_string_slow( observations, coordinates, state_vector, NMEA_buf);
-	  GNSS_data_guard.release();
+	  if( ok)
+	    {
+	      format_NMEA_string_slow( observations, coordinates, state_vector, NMEA_buf);
+	      GNSS_data_guard.release();
+	    }
+	  // If GNSS data is busy, skip this slow batch instead of killing NMEA output.
 	}
 #endif
       //Check if there is a CAN Message received which needs to be replayed via a Larus NMEA PLARS Sentence.
