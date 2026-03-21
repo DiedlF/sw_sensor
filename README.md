@@ -36,6 +36,11 @@ Pull latest changes:
 - Release used for release versions (Max. optimized, no debug info)
 - Debug used for development
 
+# Build and pack policy used in this workspace
+- Sensor version numbers are set **manually on request**.
+- Do not assume that the version should be derived automatically from the current git tag.
+- When a sensor package or release binary is requested, first set the requested version number explicitly and then build/package that exact version.
+
 # Flash and prepare the sensor hardware
 ## STM32
 - Flash via USB using the STM32CubeProgrammer and a compiled binary sw_sensor.elf file from here: https://github.com/larus-breeze/sw_sensor/releases  
