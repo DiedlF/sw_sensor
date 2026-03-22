@@ -82,6 +82,9 @@ void watchdog_runnable (void*)
 #endif // ACTIVATE_WATCHDOG
 
   bool sd_was_plugged = SD_is_plugged_in();
+  bool sd_state_initialized = false;
+  uint8_t sd_stable_counter = 0;
+  uint16_t startup_grace_ticks = 50; // ~2 seconds @ 40 ms
 
   uint8_t rythm = 0;
   for (synchronous_timer t (40); true;)
@@ -100,13 +103,35 @@ void watchdog_runnable (void*)
 #endif
       HAL_WWDG_Refresh (&WwdgHandle);
 
-      if( (false == sd_was_plugged) && SD_is_plugged_in())
+      bool sd_is_plugged = SD_is_plugged_in();
+      if( sd_is_plugged == sd_was_plugged)
 	{
-	  user_initiated_reset = true;
-	  while( true)
-	    ; // let the watchdog reset the system
+	  if( sd_stable_counter < 255)
+	    ++sd_stable_counter;
 	}
-      sd_was_plugged = SD_is_plugged_in();
+      else
+	{
+	  sd_stable_counter = 0;
+	}
+
+      if( ! sd_state_initialized)
+	{
+	  if( sd_stable_counter >= 3)
+	    sd_state_initialized = true;
+	}
+      else if( startup_grace_ticks == 0)
+	{
+	  if( (false == sd_was_plugged) && sd_is_plugged && (sd_stable_counter >= 3))
+	    {
+	      user_initiated_reset = true;
+	      while( true)
+	        ; // let the watchdog reset the system
+	    }
+	}
+
+      if( startup_grace_ticks > 0)
+	--startup_grace_ticks;
+      sd_was_plugged = sd_is_plugged;
 #endif
     }
 }

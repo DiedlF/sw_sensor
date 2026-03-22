@@ -146,14 +146,10 @@ restart:
   f_close( &the_file); // as this is just a dummy file
 
   FILINFO filinfo;
+  bool logging_enabled = false;
   fresult = f_stat("logger", &filinfo);
-  if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)==0))
-    while( 1)
-	{
-	notify_take (true); // wait for synchronization by crash detection
-	if( crashfile && ! user_initiated_reset)
-	  write_crash_dump();
-	}
+  if( (fresult == FR_OK) && ((filinfo.fattrib & AM_DIR)!=0))
+    logging_enabled = true;
 
   char out_filename[30];
 
@@ -172,29 +168,32 @@ restart:
       char * next = out_filename;
 
       fresult = f_stat("eeprom", &filinfo);
-      if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)!=0))
+      if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)==0))
 	{
-	  append_string( next, "eeprom/");
-	  next = format_date_time( next, coordinates);
-	  acquire_privileges(); //reading sensitive flash sections
-	  write_EEPROM_dump( out_filename); // now we have date+time, start logging
-	  drop_privileges();
+	  FRESULT mkdir_result = f_mkdir("eeprom");
+	  if( (mkdir_result == FR_OK) || (mkdir_result == FR_EXIST))
+	    {
+	      append_string( next, "eeprom/");
+	      next = format_date_time( next, coordinates);
+	      acquire_privileges(); //reading sensitive flash sections
+	      write_EEPROM_dump( out_filename); // now we have date+time, start logging
+	      drop_privileges();
+	    }
 	}
 
-      next = out_filename;
-      append_string( next, "logger/");
-      next = format_date_time( next, coordinates);
-      append_string( next, ".lrsx");
+      bool flight_logging_active = logging_enabled;
+      bool success = true;
 
-      bool success = flex_file.open(out_filename);
-      if ( not success)
+      if( flight_logging_active)
 	{
-	  while( true)
-	    {
-		notify_take (true); // wait for synchronization by crash detection
-		if( crashfile && ! user_initiated_reset)
-		  write_crash_dump();
-	    }
+	  next = out_filename;
+	  append_string( next, "logger/");
+	  next = format_date_time( next, coordinates);
+	  append_string( next, ".lrsx");
+
+	  success = flex_file.open(out_filename);
+	  if ( not success)
+	    flight_logging_active = false;
 	}
 
       // repeat: fill buffer with data chunks, write it to uSD and copy remaining data to start of buffer
@@ -205,32 +204,33 @@ restart:
 
 	  if( crashfile && ! user_initiated_reset)
 	    {
-	      flex_file.close();
+	      if( flight_logging_active)
+		flex_file.close();
 	      write_crash_dump();
 	    }
 
-	  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
-	  success = flex_file.flush_buffer();
-	  success &= flex_file.sync_file();
-	  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
-
-	  if( not success)
-	      {
-	      flex_file.close(); // at least: try to ...
-
+	  if( flight_logging_active)
+	    {
+	      HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
+	      success = flex_file.flush_buffer();
+	      success &= flex_file.sync_file();
 	      HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
-	      while( true)
+
+	      if( not success)
 		{
-		notify_take (true); // wait for synchronization by crash detection
-		if( crashfile && ! user_initiated_reset)
-		  write_crash_dump();
+		  flex_file.close(); // at least: try to ...
+		  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
+		  flight_logging_active = false;
 		}
-	      }
+	    }
 
 	  if( perform_after_landing_actions.test_and_reset())
 	    {
-	      flex_file.block_input(); // avoid buffer overrun
-	      flex_file.close();
+	      if( flight_logging_active)
+		{
+		  flex_file.block_input(); // avoid buffer overrun
+		  flex_file.close();
+		}
 
 	      delay(250); // just to be sure everything is written
 	      break; /* break inner while loop and start again, which will start a new set of logfiles */
