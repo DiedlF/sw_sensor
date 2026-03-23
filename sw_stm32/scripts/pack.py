@@ -1,6 +1,10 @@
 #!/bin/python3
 
-import sys, io, toml, struct
+import sys, io, struct
+try:
+    import tomllib as toml
+except ModuleNotFoundError:
+    import toml
 
 from elftools.elf.elffile import ELFFile
 from elftools.elf.relocation import RelocationSection
@@ -133,7 +137,7 @@ class Binary():
 
 if ((len(sys.argv) == 2) and ("LEGACY" in str(sys.argv[1]))):
     print("Larus App Image Packer - Legacy")
-    with open("scripts/pack_legacy.toml", "r") as f:
+    with open("scripts/pack_legacy.toml", "rb") as f:
         spec = toml.load(f)
         image = Binary(spec["image"])
         image.read_new_app(spec["app"])
@@ -142,7 +146,7 @@ if ((len(sys.argv) == 2) and ("LEGACY" in str(sys.argv[1]))):
 
 else:
     print("Larus App Image Packer")
-    with open("scripts/pack.toml", "r") as f:
+    with open("scripts/pack.toml", "rb") as f:
         spec = toml.load(f)
         image = Binary(spec["image"])
         image.read_new_app(spec["app"])

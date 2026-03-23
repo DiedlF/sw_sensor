@@ -151,6 +151,9 @@ restart:
   if( (fresult == FR_OK) && ((filinfo.fattrib & AM_DIR)!=0))
     logging_enabled = true;
 
+  // Normal logging remains enabled, but failures must stay local to the SD
+  // subsystem and must not trigger a reboot loop.
+
   char out_filename[30];
 
   // wait until a GNSS timestamp is available.
@@ -183,6 +186,7 @@ restart:
 
       bool flight_logging_active = logging_enabled;
       bool success = true;
+      unsigned sync_divider = 0;
 
       if( flight_logging_active)
 	{
@@ -209,18 +213,32 @@ restart:
 	      write_crash_dump();
 	    }
 
+	  if( ! BSP_PlatformIsDetected())
+	    {
+	      if( flight_logging_active)
+		flex_file.close();
+	      f_mount(0, "", 0);
+	      HAL_SD_DeInit (&hsd);
+	      goto restart;
+	    }
+
 	  if( flight_logging_active)
 	    {
 	      HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
 	      success = flex_file.flush_buffer();
-	      success &= flex_file.sync_file();
+	      if( success && (++sync_divider >= 8))
+		{
+		  success = flex_file.sync_file();
+		  sync_divider = 0;
+		}
 	      HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
 
 	      if( not success)
 		{
-		  flex_file.close(); // at least: try to ...
+		  flex_file.close(); // keep the sensor alive even if SD logging fails
 		  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
 		  flight_logging_active = false;
+		  delay(250);
 		}
 	    }
 

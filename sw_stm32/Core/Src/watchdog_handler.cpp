@@ -121,12 +121,9 @@ void watchdog_runnable (void*)
 	}
       else if( startup_grace_ticks == 0)
 	{
-	  if( (false == sd_was_plugged) && sd_is_plugged && (sd_stable_counter >= 3))
-	    {
-	      user_initiated_reset = true;
-	      while( true)
-	        ; // let the watchdog reset the system
-	    }
+	  // SD hotplug is handled inside the uSD task now.
+	  // Do not force a full watchdog reset on card insertion, because that can
+	  // create a reboot loop when the card or filesystem is slow/problematic.
 	}
 
       if( startup_grace_ticks > 0)
