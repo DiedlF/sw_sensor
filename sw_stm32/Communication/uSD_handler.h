@@ -9,6 +9,7 @@
 extern bool logger_is_enabled;
 extern bool magnetic_gound_calibration;
 extern bool dump_sensor_readings;
+extern uint8_t sensor_sd_status_flags;
 
 extern flexible_log_file_implementation_t flex_file;
 extern reminder_flag perform_after_landing_actions;

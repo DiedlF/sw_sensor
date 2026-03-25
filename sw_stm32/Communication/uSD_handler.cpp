@@ -48,6 +48,7 @@ COMMON reminder_flag perform_after_landing_actions;
 extern Semaphore setup_file_handling_completed;
 
 COMMON bool dump_sensor_readings;
+COMMON uint8_t sensor_sd_status_flags = 0;
 
 COMMON FATFS fatfs;
 extern SD_HandleTypeDef hsd;
@@ -57,14 +58,25 @@ extern uint64_t FAT_time; //!< DOS FAT time for file usage
 
 extern RestrictedTask uSD_handler_task;
 
+namespace {
+enum SensorSdStatusFlags : uint8_t {
+  SENSOR_SD_PRESENT = 0x01,
+  SENSOR_SD_MOUNTED = 0x02,
+  SENSOR_SD_LOGGING_ENABLED = 0x04,
+  SENSOR_SD_FLIGHT_LOG_ACTIVE = 0x08,
+};
+}
+
 //!< this executable takes care of all uSD reading and writing
 void uSD_handler_runnable (void*)
 {
 restart:
+  sensor_sd_status_flags = 0;
 
   HAL_SD_DeInit (&hsd);
   if(! BSP_PlatformIsDetected())
     {
+      sensor_sd_status_flags = 0;
       recover_and_initialize_flash();
       (void) ensure_EEPROM_parameter_integrity();
       setup_file_handling_completed.signal(); // give up waiting for configuration
@@ -79,12 +91,18 @@ restart:
     }
 
   delay(500); // ensure that there is some wait time after inserting a sd-card
+  sensor_sd_status_flags |= SENSOR_SD_PRESENT;
   HAL_StatusTypeDef hresult = HAL_SD_Init (&hsd);
   if( hresult != HAL_OK)
     goto restart;
 
   FRESULT fresult;
   fresult = f_mount (&fatfs, "", 0);
+
+  if (fresult == FR_OK)
+    sensor_sd_status_flags |= SENSOR_SD_MOUNTED;
+  else
+    sensor_sd_status_flags &= ~(uint8_t)SENSOR_SD_MOUNTED;
 
   if (fresult != FR_OK)
     {
@@ -146,14 +164,18 @@ restart:
   f_close( &the_file); // as this is just a dummy file
 
   FILINFO filinfo;
+  bool logging_enabled = false;
   fresult = f_stat("logger", &filinfo);
-  if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)==0))
-    while( 1)
-	{
-	notify_take (true); // wait for synchronization by crash detection
-	if( crashfile && ! user_initiated_reset)
-	  write_crash_dump();
-	}
+  if( (fresult == FR_OK) && ((filinfo.fattrib & AM_DIR)!=0))
+    logging_enabled = true;
+
+  if( logging_enabled)
+    sensor_sd_status_flags |= SENSOR_SD_LOGGING_ENABLED;
+  else
+    sensor_sd_status_flags &= ~(uint8_t)SENSOR_SD_LOGGING_ENABLED;
+
+  // Normal logging remains enabled, but failures must stay local to the SD
+  // subsystem and must not trigger a reboot loop.
 
   char out_filename[30];
 
@@ -172,30 +194,39 @@ restart:
       char * next = out_filename;
 
       fresult = f_stat("eeprom", &filinfo);
-      if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)!=0))
+      if( (fresult != FR_OK) || ((filinfo.fattrib & AM_DIR)==0))
 	{
-	  append_string( next, "eeprom/");
-	  next = format_date_time( next, coordinates);
-	  acquire_privileges(); //reading sensitive flash sections
-	  write_EEPROM_dump( out_filename); // now we have date+time, start logging
-	  drop_privileges();
-	}
-
-      next = out_filename;
-      append_string( next, "logger/");
-      next = format_date_time( next, coordinates);
-      append_string( next, ".lrsx");
-
-      bool success = flex_file.open(out_filename);
-      if ( not success)
-	{
-	  while( true)
+	  FRESULT mkdir_result = f_mkdir("eeprom");
+	  if( (mkdir_result == FR_OK) || (mkdir_result == FR_EXIST))
 	    {
-		notify_take (true); // wait for synchronization by crash detection
-		if( crashfile && ! user_initiated_reset)
-		  write_crash_dump();
+	      append_string( next, "eeprom/");
+	      next = format_date_time( next, coordinates);
+	      acquire_privileges(); //reading sensitive flash sections
+	      write_EEPROM_dump( out_filename); // now we have date+time, start logging
+	      drop_privileges();
 	    }
 	}
+
+      bool flight_logging_active = logging_enabled;
+      bool success = true;
+      unsigned sync_divider = 0;
+
+      if( flight_logging_active)
+	{
+	  next = out_filename;
+	  append_string( next, "logger/");
+	  next = format_date_time( next, coordinates);
+	  append_string( next, ".lrsx");
+
+	  success = flex_file.open(out_filename);
+	  if ( not success)
+	    flight_logging_active = false;
+	}
+
+      if( flight_logging_active)
+	sensor_sd_status_flags |= SENSOR_SD_FLIGHT_LOG_ACTIVE;
+      else
+	sensor_sd_status_flags &= ~(uint8_t)SENSOR_SD_FLIGHT_LOG_ACTIVE;
 
       // repeat: fill buffer with data chunks, write it to uSD and copy remaining data to start of buffer
       // this logger loop is synchronized by the communicator object
@@ -205,32 +236,50 @@ restart:
 
 	  if( crashfile && ! user_initiated_reset)
 	    {
-	      flex_file.close();
+	      if( flight_logging_active)
+		flex_file.close();
 	      write_crash_dump();
 	    }
 
-	  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
-	  success = flex_file.flush_buffer();
-	  success &= flex_file.sync_file();
-	  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
+	  if( ! BSP_PlatformIsDetected())
+	    {
+	      if( flight_logging_active)
+		flex_file.close();
+	      sensor_sd_status_flags = 0;
+	      f_mount(0, "", 0);
+	      HAL_SD_DeInit (&hsd);
+	      goto restart;
+	    }
 
-	  if( not success)
-	      {
-	      flex_file.close(); // at least: try to ...
-
-	      HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
-	      while( true)
+	  if( flight_logging_active)
+	    {
+	      HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_SET);
+	      success = flex_file.flush_buffer();
+	      if( success && (++sync_divider >= 8))
 		{
-		notify_take (true); // wait for synchronization by crash detection
-		if( crashfile && ! user_initiated_reset)
-		  write_crash_dump();
+		  success = flex_file.sync_file();
+		  sync_divider = 0;
 		}
-	      }
+	      HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
+
+	      if( not success)
+		{
+		  flex_file.close(); // keep the sensor alive even if SD logging fails
+		  HAL_GPIO_WritePin (LED_STATUS1_GPIO_Port, LED_STATUS2_Pin, GPIO_PIN_RESET);
+		  flight_logging_active = false;
+		  sensor_sd_status_flags &= ~(uint8_t)SENSOR_SD_FLIGHT_LOG_ACTIVE;
+		  delay(250);
+		}
+	    }
 
 	  if( perform_after_landing_actions.test_and_reset())
 	    {
-	      flex_file.block_input(); // avoid buffer overrun
-	      flex_file.close();
+	      if( flight_logging_active)
+		{
+		  flex_file.block_input(); // avoid buffer overrun
+		  flex_file.close();
+		}
+	      sensor_sd_status_flags &= ~(uint8_t)SENSOR_SD_FLIGHT_LOG_ACTIVE;
 
 	      delay(250); // just to be sure everything is written
 	      break; /* break inner while loop and start again, which will start a new set of logfiles */
